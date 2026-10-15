@@ -53,4 +53,10 @@ if __name__ == "__main__":
     sys.path.insert(0, str(ROOT))
     from workbench import cli
 
-    sys.exit(cli.main(sys.argv[1:]))
+    try:
+        code = cli.main(sys.argv[1:])
+        sys.stdout.flush()
+    except BrokenPipeError:  # output piped into something that stopped reading (e.g. `| head`)
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        code = 0
+    sys.exit(code)

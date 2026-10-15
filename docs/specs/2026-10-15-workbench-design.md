@@ -602,7 +602,11 @@ the maintainer commits them into the pack.
 
 ### B5. Publishing models (`tools/publish_model.py`)
 
-Maintainer-side only (users never run it). For one catalog entry:
+Maintainer-side only (users never run it). It runs on the operator's miniRUD
+server, which downloads from the model sources at about 31 MB/s and uploads to
+GitHub much faster than the laptop. The GitHub login is passed from the laptop
+over ssh on standard input and kept only in memory for the push (the llm-kit
+upload method). For one catalog entry:
 
 1. Download the file from its source at the pinned revision (B3's research
    notes record every revision and sha256) and check the sha256.
@@ -621,7 +625,7 @@ Maintainer-side only (users never run it). For one catalog entry:
 entry may name that repo, and fetching by blob ID from it was tested. Stage 1
 points those entries at `playground_stuff` and uploads only the new files
 (about 18 GB: Qwen3.5-0.8B/2B, the 4B/8B embedding models, the rerankers),
-which saves roughly 5 hours of upload at the measured 3 MB/s. They can move to
+so nothing is uploaded twice. They can move to
 `workbench-models` later by changing only the catalog.
 
 ### B6. Tracing and app stack

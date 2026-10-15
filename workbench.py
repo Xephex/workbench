@@ -48,8 +48,24 @@ def ensure_python():
     sys.exit(1)
 
 
+def ensure_package():
+    """A `git clone --sparse` checks out only top-level files. Fetch the package folder."""
+    if (ROOT / "workbench" / "__init__.py").exists():
+        return
+    if not (ROOT / ".git").exists():
+        print(f"The folder {ROOT / 'workbench'} is missing. Download the workbench again with:")
+        print("  git clone --filter=blob:none --sparse https://github.com/Xephex/workbench")
+        sys.exit(1)
+    print("Fetching the workbench program files (first run only)...", flush=True)
+    r = subprocess.run(["git", "-C", str(ROOT), "sparse-checkout", "add", "workbench", "tools"])
+    if r.returncode != 0 or not (ROOT / "workbench" / "__init__.py").exists():
+        print("git could not fetch the program files (message above). Check the network and run this again.")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     ensure_python()
+    ensure_package()
     sys.path.insert(0, str(ROOT))
     from workbench import cli
 

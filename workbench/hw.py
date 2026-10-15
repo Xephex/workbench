@@ -6,7 +6,7 @@ returns [] and detection carries on.
 
 from __future__ import annotations
 
-import ctypes, ctypes.util, dataclasses, os, pathlib, platform, shutil, sys
+import ctypes, ctypes.util, dataclasses, os, pathlib, shutil, sys
 
 GB = 1_000_000_000
 APPLE_GPU_SHARE = 0.66
@@ -400,10 +400,40 @@ def _cpu_name(plat: str) -> str:
     return "unknown CPU"
 
 
+_IMAGE_FILE_MACHINE = {0x8664: "x86_64", 0xAA64: "arm64"}
+
+
+def _windows_native_machine() -> str | None:
+    """Native CPU type via IsWow64Process2 (Windows 10 1709+); sees through x64 emulation on ARM."""
+    try:
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        fn = k32.IsWow64Process2
+    except (AttributeError, OSError):
+        return None
+    fn.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ushort), ctypes.POINTER(ctypes.c_ushort)]
+    fn.restype = ctypes.c_int
+    k32.GetCurrentProcess.restype = ctypes.c_void_p
+    process, native = ctypes.c_ushort(), ctypes.c_ushort()
+    if not fn(k32.GetCurrentProcess(), ctypes.byref(process), ctypes.byref(native)):
+        return None
+    return _IMAGE_FILE_MACHINE.get(native.value)
+
+
+def _arch(plat: str) -> str:
+    """CPU architecture without the platform module (platform.machine() can start `cmd /c ver`)."""
+    if plat == "windows":
+        native = _windows_native_machine()
+        if native:
+            return native
+        name = os.environ.get("PROCESSOR_ARCHITEW6432") or os.environ.get("PROCESSOR_ARCHITECTURE", "")
+        return "arm64" if name.upper() == "ARM64" else "x86_64"
+    machine = os.uname().machine.lower() if hasattr(os, "uname") else ""
+    return "arm64" if machine in ("arm64", "aarch64") else "x86_64"
+
+
 def detect(models_dir: pathlib.Path, plat: str | None = None) -> Profile:
     plat = plat or {"win32": "windows", "darwin": "macos"}.get(sys.platform, "linux")
-    machine = platform.machine().lower()
-    arch = "arm64" if machine in ("arm64", "aarch64") else "x86_64"
+    arch = _arch(plat)
     rosetta = False
     cpu_name = _cpu_name(plat)
     if plat == "windows":

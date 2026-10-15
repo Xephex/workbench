@@ -8,10 +8,11 @@ def say(msg: str = "") -> None:
 
 
 def ask(prompt: str, default: str = "") -> str:
+    """Return the answer, or the default on Enter or end of input. Ctrl+C raises KeyboardInterrupt."""
     suffix = f" [{default}]" if default else ""
     try:
         answer = input(f"{prompt}{suffix}: ").strip()
-    except (EOFError, KeyboardInterrupt):
+    except EOFError:
         print()
         return default
     return answer or default

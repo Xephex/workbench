@@ -29,12 +29,18 @@ def _profile_lines(p: hw.Profile) -> None:
 
 
 def plan_downloads(chosen: list[catalog.Model], models_dir: pathlib.Path) -> int:
-    return sum(m.total_bytes for m in chosen if not fetch.is_installed(m, models_dir))
+    """Bytes still to download: only the chunks not yet on disk."""
+    return sum(fetch.remaining_bytes(f, models_dir / m.folder) for m in chosen for f in m.files)
+
+
+def _scratch_bytes(chosen: list[catalog.Model]) -> int:
+    """The throwaway repo holds one chunk at a time (spec A5)."""
+    return max((c.bytes for m in chosen for f in m.files for c in f.chunks), default=0)
 
 
 def _download(chosen: list[catalog.Model], p: hw.Profile) -> int:
     need = plan_downloads(chosen, MODELS)
-    if need * 1.02 > p.disk_free_bytes:
+    if need and need * 1.02 + _scratch_bytes(chosen) > p.disk_free_bytes:
         say(f"Not enough disk: need {gb(need)}, free {gb(p.disk_free_bytes)}. "
             "Free up space or remove models, then run again.")
         return 1
@@ -47,9 +53,12 @@ def _download(chosen: list[catalog.Model], p: hw.Profile) -> int:
             fetch.fetch_model(m, MODELS, WORK, progress=lambda name, done, total: print(
                 f"\r    {name}: {done * 100 // total}%", end="", flush=True))
             print()
-        except fetch.FetchError as e:
+        except (fetch.FetchError, OSError) as e:
             print()
             say(f"  {m.id}: {e}")
+            if isinstance(e, OSError):
+                say("  Check free disk space and that no other program has the models folder open, "
+                    "then run the same command again; it resumes where it stopped.")
             return 1
     say("Models ready.")
     return 0
@@ -58,8 +67,7 @@ def _download(chosen: list[catalog.Model], p: hw.Profile) -> int:
 def _remove(m: catalog.Model) -> None:
     folder = MODELS / m.folder
     for f in m.files:
-        (folder / f.name).unlink(missing_ok=True)
-        (folder / f"{f.name}.ok").unlink(missing_ok=True)
+        fetch.remove_file(f, folder)
     if folder.is_dir() and not any(folder.iterdir()):
         folder.rmdir()
     say(f"  removed {m.id}")
@@ -104,11 +112,26 @@ def cmd_models(a, p, models) -> int:
             done = " installed" if fetch.is_installed(o.model, MODELS) else ""
             note = f" ({o.reason})" if o.reason else ""
             say(f"  {star} {o.model.id:<18} {gb(o.model.total_bytes):>8}{done}{note}")
-    answer = ask("Models to install, comma-separated", ",".join(m.id for m in rec))
+    blocked = [o for o in offers.values() if not o.runnable]
+    if blocked:
+        say("Not available on this machine:")
+        for o in blocked:
+            say(f"    {o.model.id:<18} {o.reason}")
+    try:
+        answer = ask("Models to install, comma-separated", ",".join(m.id for m in rec))
+    except KeyboardInterrupt:
+        print()
+        say("Cancelled; nothing was downloaded.")
+        return 130
     picked = [s.strip() for s in answer.split(",") if s.strip()]
-    unknown = [s for s in picked if s not in offers or not offers[s].runnable]
+    unknown = [s for s in picked if s not in offers]
     if unknown:
-        say(f"Not available here: {', '.join(unknown)}")
+        say(f"Unknown model {', '.join(unknown)}. Known: {', '.join(by_id)}")
+        return 2
+    cannot = [offers[s] for s in picked if not offers[s].runnable]
+    if cannot:
+        for o in cannot:
+            say(f"{o.model.id}: {o.reason}")
         return 2
     return _download([by_id[s] for s in picked], p)
 

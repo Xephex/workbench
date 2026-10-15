@@ -139,6 +139,65 @@ chunks = [{{ blob = "ab", bytes = 1 }}]
         self.assertIn("Platform pack: linux-x64-vulkan", out)
         self.assertTrue((self.base / "models" / "tiny" / "t.gguf").exists())
 
+    def test_ctrl_c_at_prompt_aborts(self):
+        """I5: Ctrl+C must never start the default download."""
+        out = io.StringIO()
+        with mock.patch("sys.stdout", out), mock.patch("builtins.input", side_effect=KeyboardInterrupt):
+            code = cli.main(["models"])
+        self.assertNotEqual(code, 0)
+        self.assertFalse((self.base / "models" / "tiny").exists())
+        self.assertIn("Cancelled", out.getvalue())
+
+    def test_interactive_unrunnable_pick_explains_why(self):
+        """I6: typing a model that cannot run says why (incl. the WSL hint)."""
+        code, out = self.run_cli("models", stdin="huge\n")
+        self.assertEqual(code, 2)
+        self.assertIn("huge: needs 999 GB of RAM", out)
+
+    def test_setup_lists_models_that_cannot_run(self):
+        """I6 / spec B2: setup explains what is missing, not only what fits."""
+        code, out = self.run_cli("setup", stdin="\n")
+        self.assertEqual(code, 0, out)
+        self.assertIn("huge", out)
+        self.assertIn("needs 999 GB of RAM", out)
+
+    def test_disk_check_counts_only_missing_chunks(self):
+        """I3: a nearly finished download must be resumable on a nearly full disk."""
+        from workbench import fetch as wfetch
+        models = catalog.load(self.base / "catalog.toml")
+        tiny = next(m for m in models if m.id == "tiny")
+        dest = self.base / "models" / "tiny"
+        dest.mkdir(parents=True)
+        (dest / "t.gguf.fetching").write_text("2\n")
+        (dest / "t.gguf.partial").write_bytes(self.data[:4_000])
+        need = cli.plan_downloads([tiny], self.base / "models")
+        self.assertEqual(need, 1_000)
+
+    def test_disk_check_includes_scratch_chunk(self):
+        """I2: free space must cover the remaining bytes plus one chunk of scratch."""
+        with mock.patch.object(hw, "detect", return_value=fake_profile(disk_free=5_500)):
+            code, out = self.run_cli("models", "--add", "tiny")
+        self.assertEqual(code, 1)
+        self.assertIn("Not enough disk", out)
+
+    def test_remove_deletes_partial_download(self):
+        """I4: --remove also deletes a half-finished download."""
+        dest = self.base / "models" / "tiny"
+        dest.mkdir(parents=True)
+        (dest / "t.gguf.partial").write_bytes(b"x" * 100)
+        (dest / "t.gguf.fetching").write_text("1\n")
+        code, out = self.run_cli("models", "--remove", "tiny")
+        self.assertEqual(code, 0)
+        self.assertFalse(dest.exists())
+
+    def test_os_error_during_download_is_reported(self):
+        """C1/I2: an OSError (disk full, file locked) is a message, not a traceback."""
+        from workbench import fetch as wfetch
+        with mock.patch.object(wfetch, "fetch_model", side_effect=OSError(28, "No space left on device")):
+            code, out = self.run_cli("models", "--add", "tiny")
+        self.assertEqual(code, 1)
+        self.assertIn("No space left on device", out)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -88,6 +88,88 @@ class FetchTest(unittest.TestCase):
         fetch.fetch_model(m, models_dir, self.work)
         self.assertTrue(fetch.is_installed(m, models_dir))
 
+    def test_read_only_git_objects_are_removed(self):
+        """C1: Windows cannot rmtree read-only files; git makes its objects read-only."""
+        real_unlink = os.unlink
+
+        def windows_like_unlink(path, *, dir_fd=None):
+            if not os.access(path, os.W_OK, dir_fd=dir_fd):
+                raise PermissionError(13, "Access is denied", str(path))
+            return real_unlink(path, dir_fd=dir_fd)
+
+        with mock.patch("os.unlink", side_effect=windows_like_unlink):
+            out = fetch.fetch_file(self.f, self.dest, self.work)
+        self.assertEqual(out.read_bytes(), self.data)
+        self.assertEqual([p for p in self.work.iterdir()], [])
+
+    def test_empty_state_file_resumes_from_start(self):
+        """I8: power loss can leave an empty .fetching file."""
+        self.dest.mkdir(parents=True)
+        (self.dest / "m.gguf.fetching").write_text("")
+        out = fetch.fetch_file(self.f, self.dest, self.work)
+        self.assertEqual(out.read_bytes(), self.data)
+
+    def test_state_beyond_partial_is_capped(self):
+        """I8: .fetching says 3 chunks but .partial holds only one; never zero-fill."""
+        self.dest.mkdir(parents=True)
+        (self.dest / "m.gguf.fetching").write_text("3\n")
+        (self.dest / "m.gguf.partial").write_bytes(self.data[:3_000])
+        seen = []
+        with mock.patch.object(fetch, "_append_chunk", wraps=fetch._append_chunk) as ap:
+            out = fetch.fetch_file(self.f, self.dest, self.work)
+        self.assertEqual(out.read_bytes(), self.data)
+        self.assertEqual(ap.call_count, len(self.f.chunks) - 1)
+
+    def test_half_created_bare_repo_is_rebuilt(self):
+        """I8: Ctrl+C between git init and git config leaves a repo with no remote."""
+        bare = self.work / "Xephex_models.git"
+        bare.mkdir(parents=True)
+        import subprocess
+        subprocess.run(["git", "init", "-q", "--bare"], cwd=bare, check=True)
+        out = fetch.fetch_file(self.f, self.dest, self.work)
+        self.assertEqual(out.read_bytes(), self.data)
+
+    def test_renamed_but_no_ok_marker_is_finished_without_refetch(self):
+        """I8: a crash between the rename and writing .ok must not force a re-download."""
+        fetch.fetch_file(self.f, self.dest, self.work)
+        (self.dest / "m.gguf.ok").unlink()
+        with mock.patch.object(fetch, "_git") as g:
+            out = fetch.fetch_file(self.f, self.dest, self.work)
+        g.assert_not_called()
+        self.assertEqual(out.read_bytes(), self.data)
+        self.assertTrue((self.dest / "m.gguf.ok").exists())
+
+    def test_remaining_bytes_counts_only_missing_chunks(self):
+        """I3: a mostly downloaded file needs only its missing chunks."""
+        self.dest.mkdir(parents=True)
+        (self.dest / "m.gguf.fetching").write_text("2\n")
+        (self.dest / "m.gguf.partial").write_bytes(self.data[:6_000])
+        self.assertEqual(fetch.remaining_bytes(self.f, self.dest), 4_000)
+        fetch.fetch_file(self.f, self.dest, self.work)
+        self.assertEqual(fetch.remaining_bytes(self.f, self.dest), 0)
+
+    def test_scratch_peak_is_about_one_chunk(self):
+        """I2 / spec A5: the throwaway repo never holds more than one chunk."""
+        sizes = []
+        real = fetch._append_chunk
+
+        def measure(bare, chunk, out):
+            real(bare, chunk, out)
+            sizes.append(sum(p.stat().st_size for p in (bare / "objects").rglob("*") if p.is_file()))
+
+        with mock.patch.object(fetch, "_append_chunk", side_effect=measure):
+            fetch.fetch_file(self.f, self.dest, self.work)
+        self.assertEqual(len(sizes), len(self.f.chunks))
+        self.assertLess(max(sizes), 5_500)  # one 3 KB chunk plus pack index; two would be ~8 KB
+
+    def test_remove_files_deletes_partial_state(self):
+        """I4: removing a model also removes its half-finished download."""
+        self.dest.mkdir(parents=True)
+        for suffix in ("", ".ok", ".partial", ".fetching"):
+            (self.dest / f"m.gguf{suffix}").write_text("x")
+        fetch.remove_file(self.f, self.dest)
+        self.assertEqual(list(self.dest.iterdir()), [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -72,6 +72,15 @@ class OfferTest(unittest.TestCase):
         rec = catalog.recommended(catalog.offered(self.models, prof), "gpu-8")
         self.assertEqual([m.id for m in rec], ["tiny-chat"])
 
+    def test_small_gpu_never_offers_less_than_cpu(self):
+        """I7: a 2 GB dedicated GPU must still run what the CPU alone could."""
+        no_gpu = {k: o.runnable for k, o in self.offers(profile(ram_gb=16)).items()}
+        small = self.offers(profile(ram_gb=16, vram_gb=2))
+        for mid, ok in no_gpu.items():
+            if ok:
+                self.assertTrue(small[mid].runnable, mid)
+        self.assertEqual(small["mid-chat"].reason, "too big for this GPU; runs on CPU only; slow")
+
     def test_wsl_reason_mentions_wslconfig(self):
         """Review focus 5: fits the host's RAM but not WSL's half."""
         o = self.offers(profile(ram_gb=16, vram_gb=16, wsl=True))

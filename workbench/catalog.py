@@ -100,8 +100,9 @@ def _offer(m: Model, p: hw.Profile) -> Offer:
         return Offer(m, False, _ram_reason(m.ram_gb, ram, p))
     if budget >= m.vram_gb and ram >= m.ram_gb:
         return Offer(m, True, None)
-    if budget == 0 and ram >= m.ram_gb + m.vram_gb:
-        return Offer(m, True, "runs on CPU only; slow")
+    if ram >= m.ram_gb + m.vram_gb:  # a GPU too small for the model must not lose the CPU option
+        return Offer(m, True, "runs on CPU only; slow" if budget == 0 else
+                     "too big for this GPU; runs on CPU only; slow")
     if budget and budget < m.vram_gb:
         return Offer(m, False, f"needs {_fmt(m.vram_gb)} GB of video memory; this machine has {_fmt(budget)}")
     need = m.ram_gb if budget else m.ram_gb + m.vram_gb

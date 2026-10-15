@@ -42,6 +42,17 @@ class LauncherTest(unittest.TestCase):
             self.assertIn("Tier:", r.stdout)
             self.assertTrue((clone / "workbench" / "cli.py").exists())
 
+    def test_ctrl_c_exits_quietly(self):
+        """Ctrl+C during a download prints how to resume, not a traceback."""
+        code = ("import runpy, sys; sys.argv = ['workbench.py', 'status']; "
+                f"sys.path.insert(0, {str(ROOT)!r}); import workbench.cli as c; "
+                "c.main = lambda argv: (_ for _ in ()).throw(KeyboardInterrupt()); "
+                f"runpy.run_path({str(ROOT / 'workbench.py')!r}, run_name='__main__')")
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertEqual(r.returncode, 130)
+        self.assertIn("resume", r.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

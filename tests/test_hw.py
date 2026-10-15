@@ -1,4 +1,4 @@
-import pathlib, tempfile, unittest
+import os, pathlib, tempfile, unittest
 from unittest import mock
 
 from workbench import hw
@@ -134,6 +134,24 @@ class DetectTest(unittest.TestCase):
         self.assertEqual([(g.vendor, g.source) for g in p.gpus], [("nvidia", "nvml"), ("intel", "dxgi")])
         self.assertEqual(p.tier, "gpu-8")
         self.assertEqual(p.os, "windows")
+
+    def test_detect_never_calls_platform_machine(self):
+        """I1: platform.machine() can fall back to `cmd /c ver` on Windows when WMI fails."""
+        with tempfile.TemporaryDirectory() as d, \
+             mock.patch("platform.machine", side_effect=AssertionError("platform.machine called")), \
+             mock.patch("platform.uname", side_effect=AssertionError("platform.uname called")):
+            p = hw.detect(pathlib.Path(d))
+        self.assertIn(p.arch, ("x86_64", "arm64"))
+
+    def test_windows_arch_from_environment(self):
+        cases = [({"PROCESSOR_ARCHITECTURE": "AMD64"}, "x86_64"),
+                 ({"PROCESSOR_ARCHITECTURE": "ARM64"}, "arm64"),
+                 ({"PROCESSOR_ARCHITECTURE": "AMD64", "PROCESSOR_ARCHITEW6432": "ARM64"}, "arm64"),
+                 ({"PROCESSOR_ARCHITECTURE": "x86", "PROCESSOR_ARCHITEW6432": "AMD64"}, "x86_64")]
+        for env, want in cases:
+            with self.subTest(env=env), mock.patch.dict(os.environ, env, clear=True), \
+                 mock.patch.object(hw, "_windows_native_machine", return_value=None):
+                self.assertEqual(hw._arch("windows"), want)
 
 
 if __name__ == "__main__":

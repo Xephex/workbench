@@ -75,4 +75,7 @@ if __name__ == "__main__":
     except BrokenPipeError:  # output piped into something that stopped reading (e.g. `| head`)
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         code = 0
+    except KeyboardInterrupt:
+        print("\nStopped. Run the same command again to continue; downloads resume where they stopped.")
+        code = 130
     sys.exit(code)

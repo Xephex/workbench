@@ -1,0 +1,61 @@
+[[model]]
+id = "tiny-chat"
+kinds = ["chat"]
+engine = "llama.cpp"
+ram_gb = 2
+vram_gb = 0
+recommended_for = ["cpu", "gpu-8"]
+license = "Apache-2.0"
+source = "example/tiny"
+
+[[model.files]]
+name = "tiny.gguf"
+role = "main"
+sha256 = "aa"
+bytes = 150
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "b1", bytes = 100 }, { blob = "b2", bytes = 50 }]
+
+[[model]]
+id = "mid-chat"
+kinds = ["chat", "vision"]
+engine = "llama.cpp"
+ram_gb = 8
+vram_gb = 7
+recommended_for = ["gpu-8", "gpu-16"]
+license = "Apache-2.0"
+source = "example/mid"
+
+[[model.files]]
+name = "mid.gguf"
+role = "main"
+sha256 = "bb"
+bytes = 10
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "b3", bytes = 10 }]
+
+[[model.files]]
+name = "mmproj.gguf"
+role = "mmproj"
+sha256 = "cc"
+bytes = 5
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "b4", bytes = 5 }]
+
+[[model]]
+id = "big-moe"
+kinds = ["reasoning"]
+engine = "llama.cpp"
+ram_gb = 28
+vram_gb = 12
+recommended_for = ["gpu-16"]
+license = "Apache-2.0"
+source = "example/big"
+
+[[model.files]]
+name = "big.gguf"
+role = "main"
+sha256 = "dd"
+bytes = 1
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "b5", bytes = 1 }]

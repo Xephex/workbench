@@ -1,6 +1,6 @@
 # Workbench: design
 
-Status: draft for review, 2026-10-15
+Status: approved 2026-10-15; Stage 5 adds Deep Agents (dcode) and Forge, approved 2026-10-15
 Repos: `Xephex/workbench` (code), `Xephex/workbench-models` (model files)
 License: Apache-2.0 (code); each model keeps its own license, recorded in the catalog
 
@@ -21,8 +21,9 @@ only those pieces from GitHub, and from then on works with no network.
 It covers: chat (text, images, audio), document Q&A, OCR, Jev-style typed
 decisions, embeddings and reranking, extraction, guard and translation models,
 speech (meeting transcription with speaker labels, live voice conversation,
-read-aloud, clean-up), image generation, agents (Pi plus seven agent
-frameworks), batch jobs, model comparison, evals, tracing, a prompt library,
+read-aloud, clean-up), image generation, agents (Pi, the Deep Agents coding
+agent `dcode`, the Forge visual agent builder, and the agent frameworks of
+Stage 5), batch jobs, model comparison, evals, tracing, a prompt library,
 speed tuning, fine-tuning (text and speech), model conversion, and a resource
 monitor.
 
@@ -78,6 +79,7 @@ Xephex/workbench                 code + Python packages (small clone)
     tools/                       one module per command (chat, docs, ...)
     app/                         Gradio UI, one module per tab
     trace.py                     OpenTelemetry setup
+  third_party/                   prebuilt pieces we do not write (Forge console, Stage 5)
   catalog.toml                   every model and pack: needs, size, chunks
   packs/<platform>/              wheel files for one platform, chunked if >95 MB
   examples/                      agent examples, eval sets, prompts, n8n flows
@@ -295,7 +297,12 @@ Packs are layered so a machine installs only what it uses:
 - `llama-<backend>`: the llama.cpp wheel for that backend (+ CUDA runtime wheels)
 - `speech`, `onnx`: Stage 2 and 3 additions
 - `torch-<backend>`: only on machines that can fine-tune (Stage 6)
-- `agents-<framework>`: one per agent framework (Stage 5)
+- `agents-<framework>`: one per agent framework (Stage 5); `agents-deepagents`
+  (Deep Agents library), `agents-dcode` (the dcode coding agent) and
+  `agents-forge` (Forge's Python backend) are among them. Two dcode
+  dependencies publish no Python 3.14 wheels and are built by our CI like the
+  llama.cpp wheels: `bsdiff4` (one wheel per platform) and `forbiddenfruit`
+  (pure Python, one wheel).
 
 Every pack is verified in CI by installing it with `--no-index` on its target
 platform (or with `uv --python-platform` for platforms with no runner), the
@@ -333,6 +340,10 @@ listed at the bottom with the reason.
 
 The terminal launcher (`python workbench.py` with no arguments) offers: open
 the app, run a command, setup, models, update, status.
+
+Forge's console (Stage 5) is not a Gradio tab. It is Forge's own web app,
+built once in CI as static files and served by the workbench at `/forge/`; the
+Agents tab links to it.
 
 ### A11. Tracing and evals
 
@@ -384,7 +395,7 @@ the machine) and `--json` for machine-readable output.
 | 2. Speech | STT models incl. accented-English checks, diarization, VAD, TTS, meeting pipeline with clean-up and notes, live voice, vocabulary |
 | 3. Decide and documents | Jev-style models + `/v1/systemone`, OCR (two tiers), extraction, guard, translation, batch |
 | 4. Evaluate and trace | trace viewer, eval sets and runs, model comparison, prompt library, Langfuse export |
-| 5. Agent frameworks | LangGraph, Google ADK, OpenAI Agents SDK, Pydantic AI, smolagents, CrewAI, LlamaIndex packs, each with an example |
+| 5. Agent frameworks | LangGraph, Deep Agents, Google ADK, OpenAI Agents SDK, Pydantic AI, smolagents, CrewAI, LlamaIndex packs, each with an example; the `dcode` coding agent (`workbench.py dcode`, next to `pi`); the Forge visual agent builder (`workbench.py forge`) |
 | 6. Fine-tuning | dataset builder, text LoRA, Whisper fine-tuning, conversion to GGUF, before/after evals |
 | 7. Image generation | stable-diffusion.cpp models (GPU tiers) |
 
@@ -417,6 +428,37 @@ confirms them.
   (ONNX) and llama.cpp vision models; image generation needs our own
   stable-diffusion.cpp Python build (same approach as B4) because the
   ready-made `sd-cli` program is an executable.
+- **Deep Agents (Stage 5), probed 2026-10-15 on Python 3.14:** the `deepagents`
+  library (MIT) with `langchain-openai` and the SQLite checkpointer resolves to
+  wheels on all three platforms (63 packages). The `dcode` coding agent
+  (`deepagents-code`, MIT, 159-161 packages) needs two wheels built by us
+  (A8). It pulls in `langgraph-api`, which is Elastic License 2.0 like
+  Phoenix, so the same notice handling applies. Offline settings:
+  `DEEPAGENTS_CODE_OFFLINE=1` (otherwise it downloads `rg.exe`, which R6
+  forbids), `DEEPAGENTS_CODE_NO_UPDATE_CHECK=1`, `LANGSMITH_TRACING=false`,
+  `DEEPAGENTS_HOME` inside the workbench folder, and a provider entry pointing
+  `langchain_openai` at the local server. On slow machines,
+  `LANGCHAIN_OPENAI_STREAM_CHUNK_TIMEOUT_S` must be raised: dcode's ~11k-token
+  system prompt takes minutes to read on a CPU, longer than the 120-second
+  default gap allowed between streamed pieces. Headless runs (`dcode -n`) need
+  standard input closed.
+- **Forge (Stage 5), probed 2026-10-15:** github.com/nihalashetty/Forge (MIT),
+  a visual builder for LangGraph/Deep Agents agents and workflows that avoids
+  `langgraph-api` and LangSmith. It declares Python <3.14, but its backend
+  resolves to wheels on Python 3.14 for all three platforms (184-187
+  packages; macOS needs a 14.0 deployment target for onnxruntime) and its own
+  tests pass on 3.14 (650 of 651; the failure is a newer LangChain default,
+  not 3.14). Its console is a Next.js app with client-side pages only, so it
+  builds to about 2 MB of static files (`output: "export"`) and needs no
+  Node.js on the user's machine; the build removes its Google Fonts link. One
+  Python process serves the API and the static files; a browser session
+  contacted only 127.0.0.1. Workbench integration: `OPENAI_BASE_URL` set to
+  the local server, its embedder and reranker pointed at the workbench's
+  `/v1/embeddings` and `/v1/rerank` (or fastembed's cache directory filled
+  from our chunked copies), a pre-filled tiktoken cache, and the
+  anti-framing headers its Next.js middleware set added by our wrapper. Its
+  data folder is fixed at `apps/api/.data`, so the pack places Forge inside
+  the workbench folder.
 - **Licenses that rule models out:** NLLB (translation), DiariZen, FLUX.1-dev,
   FLUX.2-klein-9B, SDXL-Turbo, Llama Guard, ShieldGemma, Nanonets-OCR, some
   Piper voices, and the large OpenJev GGUF. Picks per category are in the
@@ -704,7 +746,11 @@ for tool calls, and owning the routes removes those patches.
   per model instance (llama-cpp-python runs one sequence at a time); requests
   for a busy model queue in arrival order.
 - **Tool calls:** llm-kit's `toolcalls.py` parser and its 13 tests move over
-  unchanged.
+  unchanged, with the server-level test added in llm-kit e85c04a (tool calls
+  returned as `tool_calls` both streamed and not streamed).
+- **Message content:** every role accepts content as a string or as a list of
+  text parts (OpenAI allows both; LangChain agents such as dcode send system
+  messages as a list, which llama-cpp-python's bundled server rejects).
 - **Tracing:** an OpenTelemetry span per request, with child spans for model
   load, prompt processing and generation; attributes follow the OpenInference
   conventions so Phoenix shows them as LLM spans.

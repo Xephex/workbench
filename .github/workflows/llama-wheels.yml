@@ -166,6 +166,7 @@ jobs:
               rp=$(patchelf --print-rpath "$f")
               if [ "$rp" != '$ORIGIN' ]; then echo "RUNPATH $rp -> \$ORIGIN: ${f##*/}"; patchelf --set-rpath '$ORIGIN' "$f"; fi
             done
+            mkdir -p /w/wheelhouse
             $PY -m wheel pack /tmp/unpacked/* -d /w/wheelhouse
         run: |
           docker run --rm -v "$GITHUB_WORKSPACE:/w" \

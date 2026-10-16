@@ -157,3 +157,145 @@ sha256 = "06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439"
 bytes = 639150592
 repo = "Xephex/playground_stuff"
 chunks = [{ blob = "ef2030ce6c1190f1c03170aa451337a130965852", bytes = 99614720 }, { blob = "038b21b5d453e1f92f624a8cf42f91c3ec0033a3", bytes = 99614720 }, { blob = "5c1b424c302af31e2e03dfba3625f12b890c34b5", bytes = 99614720 }, { blob = "3b00d724baa4fcfed090083c8743a1037c7df70c", bytes = 99614720 }, { blob = "ffd0b3f50d6d299eafb9cfbbd8fd6005aedbba53", bytes = 99614720 }, { blob = "139ddfa195df17524425aaec7f48acf348d3c502", bytes = 99614720 }, { blob = "ec4bf87c55cb03b8ea70bff6118980d027d3394e", bytes = 41462272 }]
+
+[[model]]
+id = "qwen3.5-0.8b"
+kinds = ["chat", "vision"]
+engine = "llama.cpp"
+ram_gb = 2
+vram_gb = 1.5
+recommended_for = []
+license = "Apache-2.0"
+source = "unsloth/Qwen3.5-0.8B-GGUF@6ab461498e2023f6e3c1baea90a8f0fe38ab64d0"
+
+[[model.files]]
+name = "Qwen3.5-0.8B-Q4_K_M.gguf"
+role = "main"
+sha256 = "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+bytes = 532517120
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "bc1bc00c31fc32468e825ead76076883033282bd", bytes = 99614720 }, { blob = "d6800ceb781e650de19560ee229260004fa2a6e7", bytes = 99614720 }, { blob = "f167dc875d4b661c3a964aabd3e3586b1131177c", bytes = 99614720 }, { blob = "9c7d609c21327c2ee74331f37f4b31a207a777df", bytes = 99614720 }, { blob = "3eba9085dfe8921aa6585f4a24484ba2884fe8ee", bytes = 99614720 }, { blob = "04f270e43628c38c00462817f7379f095077da5b", bytes = 34443520 }]
+
+[[model.files]]
+name = "mmproj-F16.gguf"
+role = "mmproj"
+sha256 = "56e4c6cfe73b0c82e3e82bc518d7591997e61d81f723fc41a586f4fa69ea2453"
+bytes = 204987232
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "2e96924bab1c18c8ad48711dc452b9277447ba52", bytes = 99614720 }, { blob = "eb3fdeb7bbe5318fa2f3353d21d1c74e6ba14e3c", bytes = 99614720 }, { blob = "b110badec5ae42dcf7f82204347e3a2a09b7184c", bytes = 5757792 }]
+
+[[model]]
+id = "qwen3.5-2b"
+kinds = ["chat", "vision"]
+engine = "llama.cpp"
+ram_gb = 3
+vram_gb = 2.5
+recommended_for = ["cpu"]
+license = "Apache-2.0"
+source = "unsloth/Qwen3.5-2B-GGUF@f6d5376be1edb4d416d56da11e5397a961aca8ae"
+
+[[model.files]]
+name = "Qwen3.5-2B-Q4_K_M.gguf"
+role = "main"
+sha256 = "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
+bytes = 1280835840
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "44e8f36729d62c0d597b725618d3907ca7a5fb71", bytes = 99614720 }, { blob = "c91967ff6234503a4397a20e7529738e82b83ba4", bytes = 99614720 }, { blob = "08aa191757d10d5c0f7fe7ed293cb7c666781884", bytes = 99614720 }, { blob = "c2078efc18a9501f277c5699eafd14c8371503fd", bytes = 99614720 }, { blob = "b27eafc1548beede6c904ef528b4033d0ef3e82f", bytes = 99614720 }, { blob = "847e1e909e5dcc133f19e32aeb7efbee3f26f14e", bytes = 99614720 }, { blob = "9135c77cfc7c95b237928f9502edb0ed7748b151", bytes = 99614720 }, { blob = "0dc5659c16c1d5bec5bd0be8394cfe6424b4a232", bytes = 99614720 }, { blob = "a900e6c9efe831ed1a96870aa31acce0e3f07623", bytes = 99614720 }, { blob = "ea25691ca52bd7a9c1fd272ba4c0ed6c1185460c", bytes = 99614720 }, { blob = "791980ac5c1f0d1f8d306e0d2047de777df6cb1d", bytes = 99614720 }, { blob = "d80db27aaf59b46dc29b99879972e5bf744c4698", bytes = 99614720 }, { blob = "cc3eaae917f442550c63f470d6877aef25d68a62", bytes = 85459200 }]
+
+[[model.files]]
+name = "mmproj-F16.gguf"
+role = "mmproj"
+sha256 = "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"
+bytes = 668227264
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "3595d2a513b93e3adeafbef9e9a455d8ee622991", bytes = 99614720 }, { blob = "903f3fcb156cea5483bfedfa530855c68200a3e0", bytes = 99614720 }, { blob = "1d64ad059dae84688d826c985b45a6988eac6cf5", bytes = 99614720 }, { blob = "fb97f89b921edcf7da09cf95460f546cff63ca58", bytes = 99614720 }, { blob = "4f9ed0ae9983dd9ab91e2ce8b3d47ae5d7952082", bytes = 99614720 }, { blob = "a299308c8870bd77b74278ef9d1f78359b60aed1", bytes = 99614720 }, { blob = "43e1054072634ef2b508e4ee61b533b0d862bf63", bytes = 70538944 }]
+
+[[model]]
+id = "qwen3-embed-4b"
+kinds = ["embeddings"]
+engine = "llama.cpp"
+ram_gb = 4
+vram_gb = 3
+recommended_for = ["gpu-16"]
+license = "Apache-2.0"
+source = "Qwen/Qwen3-Embedding-4B-GGUF@f4602530db1d980e16da9d7d3a70294cf5c190be"
+
+[[model.files]]
+name = "Qwen3-Embedding-4B-Q4_K_M.gguf"
+role = "main"
+sha256 = "2b0cf8f17b4c723c27303015383c27ec4bf2d8314bb677d05e920dd70bb0f16b"
+bytes = 2496703776
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "2914806591afa483d2505ed9814bdea056ea3e72", bytes = 99614720 }, { blob = "86899440fe6a45586d06a93d05286d645775a36a", bytes = 99614720 }, { blob = "90c08b594f1f14be638d1d78dccb9cb5366a8460", bytes = 99614720 }, { blob = "25fe29ec97505dc21495d1ef5b9abdac10da7e91", bytes = 99614720 }, { blob = "9f3b0a54063793b8f739a6bd25ff48ea11c40203", bytes = 99614720 }, { blob = "592051135d1e447a7e2f49f13e7d4564703fbda7", bytes = 99614720 }, { blob = "09f418664854d7bb9ce0274f3a54d35e2cc9f8e7", bytes = 99614720 }, { blob = "0dd8a4820aad37fe37d4dacb30db8c55724cfdac", bytes = 99614720 }, { blob = "4a93e4f375691c741426d8b8446fc49ac88276ed", bytes = 99614720 }, { blob = "d36bf0b1a4130bce26286c679b9f71ca4a4b3f85", bytes = 99614720 }, { blob = "f73e2dd85eb0926216815d9975e7627b7bbfe4a2", bytes = 99614720 }, { blob = "1cee6c89fc5727c2f463f1b7452ad1968d2848df", bytes = 99614720 }, { blob = "cb7fef7070a51504137f868dd1b09d827740ced6", bytes = 99614720 }, { blob = "b9f45c106c6229a21de1ac1b1554d58da4a83b4a", bytes = 99614720 }, { blob = "52292d6653267d0d12d247cd35455af6129262f2", bytes = 99614720 }, { blob = "61fd74f6902a6de17c1513c752821af5e60d1fa6", bytes = 99614720 }, { blob = "3453b26e5feafb613c410cbbb8f41a06e3199c10", bytes = 99614720 }, { blob = "6432cbe44bd8ea875c4ef5761204cf707be7e3b7", bytes = 99614720 }, { blob = "8c68f6ff6975fcbf4ac0bba2b9d85649853f90fa", bytes = 99614720 }, { blob = "56aabaf306d2a07a5e076fea8feecbc281abc0ec", bytes = 99614720 }, { blob = "afe47c5c30beecf90ed0d9ed8b5cd93f99a4a0a6", bytes = 99614720 }, { blob = "7b64287aed439211b045f50a3cd2fdadcbdc8171", bytes = 99614720 }, { blob = "b977751413ccd52beaf2e942f8afc4f19c84ccc1", bytes = 99614720 }, { blob = "25f9034e04c80d8c02d7823b643d5c8c39aff24b", bytes = 99614720 }, { blob = "0d8980c39a5d618e19f086c0d1b5eb709817f94c", bytes = 99614720 }, { blob = "ec375e1d39064e81ff0b6495484cf8ff20cad5de", bytes = 6335776 }]
+
+[[model]]
+id = "qwen3-embed-8b"
+kinds = ["embeddings"]
+engine = "llama.cpp"
+ram_gb = 7
+vram_gb = 5.5
+recommended_for = []
+license = "Apache-2.0"
+source = "Qwen/Qwen3-Embedding-8B-GGUF@69d0e58a13e463cd99a9b83e3f5fee7c10265fab"
+
+[[model.files]]
+name = "Qwen3-Embedding-8B-Q4_K_M.gguf"
+role = "main"
+sha256 = "3fcd3febec8b3fd64435204db75bf0dd73b91e8d0661e0331acfe7e7c3120b85"
+bytes = 4676804928
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "8031af48e1f3ced282bd09fcf157d6eba6785a9f", bytes = 99614720 }, { blob = "da7c98e9b2cbfa9d95e9cdc7941843ff2c6d4a82", bytes = 99614720 }, { blob = "9e09382524d5005539a6745a3b4d39aca22e14dd", bytes = 99614720 }, { blob = "37165197bfe0d6c3b6517ac690f108823c82659c", bytes = 99614720 }, { blob = "426052b5e2473059072e2265849ae2db557f414b", bytes = 99614720 }, { blob = "d054489f28438eec2fb9fde752abd662e322c57d", bytes = 99614720 }, { blob = "341fc139d8839ceb892ad51f03332d9b0d57d3c1", bytes = 99614720 }, { blob = "e5351d615bb7c0c3b9c9988dcf26ff9a5a84fb36", bytes = 99614720 }, { blob = "1eb7802eabf3079c91811be84f1c043c1f49c495", bytes = 99614720 }, { blob = "747c326056fc05c866561231d790a1143f2f9087", bytes = 99614720 }, { blob = "100cfca199d2d53cea66b4bad3ce7578dc258c81", bytes = 99614720 }, { blob = "8ec08ac096a0ee29c618b52751291ebaadf5e162", bytes = 99614720 }, { blob = "1b52ebff2ce0bfd322791a51b2be6b9a9e328ef6", bytes = 99614720 }, { blob = "ea01ebe610be06e60842dc88c9a4e15247a50a0c", bytes = 99614720 }, { blob = "081c85c97b8f1192d5fcefbb7fdeca18e15dbc72", bytes = 99614720 }, { blob = "79679aebb7e44d0c45d3a132d0e76eb762ed2311", bytes = 99614720 }, { blob = "9e53ad019a46aad1f170fd21d2f49c20224e0ec2", bytes = 99614720 }, { blob = "3e2d04bcac73704914a082d592006c02fd6a1536", bytes = 99614720 }, { blob = "afcdee09eec0f22a9f1c37c6be0efad0a46a2473", bytes = 99614720 }, { blob = "05f15d7f0f8640bb8c9213230b08903a366577d7", bytes = 99614720 }, { blob = "a252bad257d25e2f859e322f80eddf36247afafe", bytes = 99614720 }, { blob = "347bffcbd6a6bdf2fa11e12962be85eefe5516da", bytes = 99614720 }, { blob = "ee34163904cd22adef2ad36a50eb0aa67ea9f3f4", bytes = 99614720 }, { blob = "82d014455f53022af3b1d31413a1aafd9d321cc0", bytes = 99614720 }, { blob = "cc679291dfd47b87a2d0b30d0d07af08eea98a44", bytes = 99614720 }, { blob = "9650c10cd10ef74a16a98aac6f1f8452ecb427f6", bytes = 99614720 }, { blob = "a1c7b8e192ec3527fd4b9f254dd53497c324c5d2", bytes = 99614720 }, { blob = "0c3e57f5d027621f2d1f13610c5f53f833bd682d", bytes = 99614720 }, { blob = "043b7e2c2977efe595a331326bdc926e65fdf289", bytes = 99614720 }, { blob = "0c8a3dbfe46a6d7419827195126a78891b9da860", bytes = 99614720 }, { blob = "9d7f5baf503d7f2a00da28047ab93996dd31250a", bytes = 99614720 }, { blob = "3fd48714aaa7360c4e71bc8aafd567cb222e2885", bytes = 99614720 }, { blob = "10cf0687ac700a6463effe446a3f1fc569851742", bytes = 99614720 }, { blob = "a265d4268fcc1b4df19f06f7ceaa55a4b93ae20b", bytes = 99614720 }, { blob = "a0821501c93f925e8fe520fb7fa74e5095161b93", bytes = 99614720 }, { blob = "e156c2e3bd0dd8a0385efe13b28722dd0637c4a6", bytes = 99614720 }, { blob = "d2e05a0592bda49d8e518019eccf04a7bed6c0d7", bytes = 99614720 }, { blob = "d90cf82039df0da72f7e3afb8a57dcd1601d34f3", bytes = 99614720 }, { blob = "f3099020d02c36fd9213f422317cd6ffc80587a2", bytes = 99614720 }, { blob = "e42e94a9b7e0fc19aa4e13f294a63a31a8bf069e", bytes = 99614720 }, { blob = "ff89f8dc7d6073dcf0dd1bd2ad99c29bbfd86bac", bytes = 99614720 }, { blob = "b7195d2c6c5dec8ddb183015eb5c3f78852476fb", bytes = 99614720 }, { blob = "9cd0c91a76027a0a016fbb95a2c4593451cc57cf", bytes = 99614720 }, { blob = "ed466ea9880f4b623a6e6fb1787ee4fb561573f0", bytes = 99614720 }, { blob = "447a943c8b5d5ec75da1c56383ab1a740854527c", bytes = 99614720 }, { blob = "8687e95982c4d64146c71f04fa482bbb7f1d27d9", bytes = 99614720 }, { blob = "d383f067d7c770d59350c867a646fe33247f0b2f", bytes = 94527808 }]
+
+[[model]]
+id = "qwen3-rerank-0.6b"
+kinds = ["rerank"]
+engine = "llama.cpp"
+ram_gb = 2
+vram_gb = 0
+recommended_for = ["cpu", "gpu-8"]
+license = "Apache-2.0"
+source = "ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF@a02f48bb4f057028298c21fa033da2b30d7742d5"
+
+[[model.files]]
+name = "qwen3-reranker-0.6b-q8_0.gguf"
+role = "main"
+sha256 = "22c9979ce4fbcdc5acdc310c6641c32797eff1aa980b8f7a2db8a8ea23429a48"
+bytes = 639153184
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "da8f506516ffd6878200505d9e1227a122378695", bytes = 99614720 }, { blob = "eaab272a568266712538f83fd632412fa57acea3", bytes = 99614720 }, { blob = "18705d143a6e664d9df66cb7686c5d70ca5ba015", bytes = 99614720 }, { blob = "2e501d14246f330fb9756f76727f59856e44b1cd", bytes = 99614720 }, { blob = "095d7eea2fe66fa60c54e7b942d415a4ddc0ddda", bytes = 99614720 }, { blob = "d00a418b1c64e083ce1079707e8956ecb1827074", bytes = 99614720 }, { blob = "0c397b4f76e93411c04eb36c31c18d20720b36f0", bytes = 41464864 }]
+
+[[model]]
+id = "qwen3-rerank-4b"
+kinds = ["rerank"]
+engine = "llama.cpp"
+ram_gb = 4
+vram_gb = 3
+recommended_for = ["gpu-16"]
+license = "Apache-2.0"
+source = "Voodisss/Qwen3-Reranker-4B-GGUF-llama_cpp@1b452c803342e73ac3644551b727dfd51a09fd5b"
+
+[[model.files]]
+name = "Qwen3-Reranker-4B-Q4_K_M.gguf"
+role = "main"
+sha256 = "2a693b22cc8122353562c2d261a3894301c14c6eecce7304bc29968f8994258b"
+bytes = 2496717440
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "03f737c6bee314f05a597b3ba52b77d451e58ef1", bytes = 99614720 }, { blob = "3ce076b09b39c957eb089b859ba199623dc44a5b", bytes = 99614720 }, { blob = "6968da93a5b094c3751db0a249f9e3ef5fdd7e93", bytes = 99614720 }, { blob = "2cddb926ac4e5a06a32b5d368ed54b7d9de98165", bytes = 99614720 }, { blob = "61feec6f1f2dd807ffccc346a5b6e5db09379d9f", bytes = 99614720 }, { blob = "ec4bff7e63170111775733eb9984aa0af48b6dd3", bytes = 99614720 }, { blob = "2095349871c456e29c754081a2c6e290198205b7", bytes = 99614720 }, { blob = "f45553f0dd7cefc5f59f27bd934b6351d0e6ad3e", bytes = 99614720 }, { blob = "a39a08ba219c93933222f02bbf2acc276368b4e3", bytes = 99614720 }, { blob = "c32063ef6ef5934ae81da1cfeff9b92248847568", bytes = 99614720 }, { blob = "df7d147c1216ed14e6a34213997cd8a1d5b5cee0", bytes = 99614720 }, { blob = "82005033492c9c5c81a7009bcc91643befb1863c", bytes = 99614720 }, { blob = "178ebe97a1c3c0ff896b57b22975be3e00b4ecd3", bytes = 99614720 }, { blob = "6bb63dc6ee022ac968af37b7ed91dddd3b07a1f2", bytes = 99614720 }, { blob = "7c2e15e2ccb8c05a9e36f0cb919cc08059b769a8", bytes = 99614720 }, { blob = "c0d1f9035100c667553fe67d2a261fea0e275c60", bytes = 99614720 }, { blob = "7aeb547ae1bcb1c268fc214e9c205b8bc6c324ed", bytes = 99614720 }, { blob = "db07ff43ce03259074e42d5f6f0ba5056f6db720", bytes = 99614720 }, { blob = "928199ad8633a94f6865f83e0775a5180d641d5f", bytes = 99614720 }, { blob = "fb1182775b9f9dd8bd0dca8e1df128cb6e1b714c", bytes = 99614720 }, { blob = "186b428e729feefa93eecd90951ed6d690c7fbab", bytes = 99614720 }, { blob = "667d47f9081777294e81e5914ab6662c825ede52", bytes = 99614720 }, { blob = "3679656ebc505476760cca19129af4bba5fc9b04", bytes = 99614720 }, { blob = "03be218821a8930594446752abfc7a5187c47961", bytes = 99614720 }, { blob = "80589da8e69309e9b150619c5a8097f61d0f2041", bytes = 99614720 }, { blob = "31ca017c6c4d46660815b8503746ad5bf9030036", bytes = 6349440 }]
+
+[[model]]
+id = "qwen3-rerank-8b"
+kinds = ["rerank"]
+engine = "llama.cpp"
+ram_gb = 7
+vram_gb = 5.5
+recommended_for = []
+license = "Apache-2.0"
+source = "Voodisss/Qwen3-Reranker-8B-GGUF-llama_cpp@646e3a1fc04936cab940ad02e18ee6b14af46263"
+
+[[model.files]]
+name = "Qwen3-Reranker-8B-Q4_K_M.gguf"
+role = "main"
+sha256 = "b0de7188a5801565d87c895d4ee8b6a1da3f46de3f07f378b831097894f210d2"
+bytes = 4676825344
+repo = "Xephex/workbench-models"
+chunks = [{ blob = "8b86d0fc2910f675473d63aebcd8ac897b2eb7c5", bytes = 99614720 }, { blob = "4d6345a2f17532bad4bd9ba83da58c2370dd72f7", bytes = 99614720 }, { blob = "c5b4704efcefad32f032b45cdf47cb0a57b06ebd", bytes = 99614720 }, { blob = "5aefb3e89ea4fac2dbca4050c26ede53ab293fd7", bytes = 99614720 }, { blob = "381500d48d59609ae3db2ad60e833aaeef9e123e", bytes = 99614720 }, { blob = "8253f4a52289dd7050dcf117849fbd72fac5faae", bytes = 99614720 }, { blob = "0fb10cd57ae7dcea9a63aaaf5307a7d803e1088e", bytes = 99614720 }, { blob = "09f981dce43b607131d7905c07250a1949fcadc8", bytes = 99614720 }, { blob = "bf5d93f3c74cffc01b6d19a2e259e9a17ccffb5b", bytes = 99614720 }, { blob = "03a34c9134c53c7fc4176c591cfc55ca4ca7ea83", bytes = 99614720 }, { blob = "5331744dc4a1a8d29ebe4957bc2bbac2ff1fbcda", bytes = 99614720 }, { blob = "e8dee4811308e8bfe74597eb2b9f129f74500326", bytes = 99614720 }, { blob = "63d32fc80128f79e69db74ce1c77b3ba9a595c12", bytes = 99614720 }, { blob = "c690e6cb28f9303e47c7ad925ac564373668cc32", bytes = 99614720 }, { blob = "4f1edde6d0a8cdf1557f53c6260c22ea97012336", bytes = 99614720 }, { blob = "12e4e87b9b441641c1a567c0d1374ccf303b5e67", bytes = 99614720 }, { blob = "6258f4e0ad1425abb409b22ae8f07f589d44010a", bytes = 99614720 }, { blob = "cc8964cea6e704943824573424a569e681a6dc9c", bytes = 99614720 }, { blob = "183c12583da0b1f17821e00580f70aefcdd64327", bytes = 99614720 }, { blob = "ada901702fb039ed76a32370f46391635f024c0d", bytes = 99614720 }, { blob = "b73a95934342a7a0e950474d203af79f2b4f3065", bytes = 99614720 }, { blob = "af476af77379f3a95b1cd041043859c4819d7f4b", bytes = 99614720 }, { blob = "6c48f592e940db861b91ceaf5ecc7e175711f936", bytes = 99614720 }, { blob = "b557b31cf69be0c0561bbcc4f325098fb1a87161", bytes = 99614720 }, { blob = "4c1cf5d8d29ca969637aa372d39100bdceacdc93", bytes = 99614720 }, { blob = "2bb4efa6b56e8e1ddcc8c157c3cfc837345cf0b8", bytes = 99614720 }, { blob = "2bbebeff2cde18601953d97f171c7c4c34be6945", bytes = 99614720 }, { blob = "b2d9b67488f7fc657e09e2fdc9266e59dc3ee98e", bytes = 99614720 }, { blob = "1053b69e26a2d3c2497ffb994e0acdbc59919838", bytes = 99614720 }, { blob = "91610804818fce261082c9aba8f5dc9b555721e8", bytes = 99614720 }, { blob = "254c1baa18539b5a8957454040c61c44e43f64ff", bytes = 99614720 }, { blob = "7aff9cc42a2e571fbad1c8094cf5beead3a218d7", bytes = 99614720 }, { blob = "85b1a5c938f48de90d2eee8fa8bbb07bc5849edf", bytes = 99614720 }, { blob = "842c17e2f8411c785d8fb917d30f8d6ada206c27", bytes = 99614720 }, { blob = "de9c701aa96986237d5b9144f17a119a8ae30a15", bytes = 99614720 }, { blob = "6718daa3f4a8adab90b243aeb746eb3697d3bef9", bytes = 99614720 }, { blob = "83d5c876265e6a45f8fd467b71b192eee35cba38", bytes = 99614720 }, { blob = "ea40cbceca01be3d0877ba697ab33fdcbb62e3d7", bytes = 99614720 }, { blob = "9e931216e2c2269ab2292409cf8c35f3b1c70733", bytes = 99614720 }, { blob = "1ba72c1c0b69f8aa3a2022fbe9294c00475f4f6c", bytes = 99614720 }, { blob = "b46f8bbb3e2d47dc8831ff13d14d6c7d40f4914f", bytes = 99614720 }, { blob = "7b6ef2c613c56861ce0e9ac67312d2711bf3881f", bytes = 99614720 }, { blob = "79c69a8887d99e8b06800b1e72884e0e61cb7fd6", bytes = 99614720 }, { blob = "bb9423469050935f8f00385ec9eaf42dee80a20d", bytes = 99614720 }, { blob = "1bf4e4038130d9f664ec340c41c5dc18e16fbb0b", bytes = 99614720 }, { blob = "8b6d1f7c8a139783e14cb003492ef05db7cc828d", bytes = 99614720 }, { blob = "9d6916c0b2356403c76982038a91eb16b304034f", bytes = 94548224 }]

@@ -1,0 +1,121 @@
+# Models tools/publish_model.py uploads to Xephex/workbench-models (spec B3, B5).
+# Revisions, bytes and sha256 come from ~/Work/notes/workbench/stage1-research/models.md
+# (Hugging Face tree API at the pinned revision, 2026-10-15). ram_gb / vram_gb are
+# estimates until `tune` measures them (Plan 4).
+
+[[model]]
+id = "qwen3.5-0.8b"
+kinds = ["chat", "vision"]
+ram_gb = 2
+vram_gb = 1.5
+recommended_for = []
+license = "Apache-2.0"
+source = "unsloth/Qwen3.5-0.8B-GGUF@6ab461498e2023f6e3c1baea90a8f0fe38ab64d0"
+
+[[model.files]]
+name = "Qwen3.5-0.8B-Q4_K_M.gguf"
+role = "main"
+sha256 = "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+bytes = 532517120
+
+[[model.files]]
+name = "mmproj-F16.gguf"
+role = "mmproj"
+sha256 = "56e4c6cfe73b0c82e3e82bc518d7591997e61d81f723fc41a586f4fa69ea2453"
+bytes = 204987232
+
+[[model]]
+id = "qwen3.5-2b"
+kinds = ["chat", "vision"]
+ram_gb = 3
+vram_gb = 2.5
+recommended_for = ["cpu"]
+license = "Apache-2.0"
+source = "unsloth/Qwen3.5-2B-GGUF@f6d5376be1edb4d416d56da11e5397a961aca8ae"
+
+[[model.files]]
+name = "Qwen3.5-2B-Q4_K_M.gguf"
+role = "main"
+sha256 = "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
+bytes = 1280835840
+
+[[model.files]]
+name = "mmproj-F16.gguf"
+role = "mmproj"
+sha256 = "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"
+bytes = 668227264
+
+[[model]]
+id = "qwen3-embed-4b"
+kinds = ["embeddings"]
+ram_gb = 4
+vram_gb = 3
+recommended_for = ["gpu-16"]
+license = "Apache-2.0"
+source = "Qwen/Qwen3-Embedding-4B-GGUF@f4602530db1d980e16da9d7d3a70294cf5c190be"
+
+[[model.files]]
+name = "Qwen3-Embedding-4B-Q4_K_M.gguf"
+role = "main"
+sha256 = "2b0cf8f17b4c723c27303015383c27ec4bf2d8314bb677d05e920dd70bb0f16b"
+bytes = 2496703776
+
+[[model]]
+id = "qwen3-embed-8b"
+kinds = ["embeddings"]
+ram_gb = 7
+vram_gb = 5.5
+recommended_for = []
+license = "Apache-2.0"
+source = "Qwen/Qwen3-Embedding-8B-GGUF@69d0e58a13e463cd99a9b83e3f5fee7c10265fab"
+
+[[model.files]]
+name = "Qwen3-Embedding-8B-Q4_K_M.gguf"
+role = "main"
+sha256 = "3fcd3febec8b3fd64435204db75bf0dd73b91e8d0661e0331acfe7e7c3120b85"
+bytes = 4676804928
+
+[[model]]
+id = "qwen3-rerank-0.6b"
+kinds = ["rerank"]
+ram_gb = 2
+vram_gb = 0
+recommended_for = ["cpu", "gpu-8"]
+license = "Apache-2.0"
+source = "ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF@a02f48bb4f057028298c21fa033da2b30d7742d5"
+
+[[model.files]]
+name = "qwen3-reranker-0.6b-q8_0.gguf"
+role = "main"
+sha256 = "22c9979ce4fbcdc5acdc310c6641c32797eff1aa980b8f7a2db8a8ea23429a48"
+bytes = 639153184
+
+[[model]]
+id = "qwen3-rerank-4b"
+kinds = ["rerank"]
+ram_gb = 4
+vram_gb = 3
+recommended_for = ["gpu-16"]
+license = "Apache-2.0"
+source = "Voodisss/Qwen3-Reranker-4B-GGUF-llama_cpp@1b452c803342e73ac3644551b727dfd51a09fd5b"
+
+[[model.files]]
+name = "Qwen3-Reranker-4B-Q4_K_M.gguf"
+role = "main"
+sha256 = "2a693b22cc8122353562c2d261a3894301c14c6eecce7304bc29968f8994258b"
+bytes = 2496717440
+
+[[model]]
+id = "qwen3-rerank-8b"
+kinds = ["rerank"]
+ram_gb = 7
+vram_gb = 5.5
+recommended_for = []
+license = "Apache-2.0"
+source = "Voodisss/Qwen3-Reranker-8B-GGUF-llama_cpp@646e3a1fc04936cab940ad02e18ee6b14af46263"
+
+[[model.files]]
+name = "Qwen3-Reranker-8B-Q4_K_M.gguf"
+role = "main"
+sha256 = "b0de7188a5801565d87c895d4ee8b6a1da3f46de3f07f378b831097894f210d2"
+bytes = 4676825344

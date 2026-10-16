@@ -22,6 +22,9 @@ forces a platform pack (for example `win-x64-vulkan` on an NVIDIA machine).
 Packages: Windows x64 (NVIDIA CUDA or Vulkan/CPU) and Linux x64 (NVIDIA CUDA or
 Vulkan/CPU) and arm64 (CPU). macOS is not packaged yet.
 
-Model files live in [Xephex/workbench-models](https://github.com/Xephex/workbench-models).
+Model files live in [Xephex/workbench-models](https://github.com/Xephex/workbench-models)
+(published with `tools/publish_model.py`) and, for the files llm-kit already uploaded,
+[Xephex/playground_stuff](https://github.com/Xephex/playground_stuff). `catalog.toml` lists all
+14 Stage 1 models and names the repo of every file.
 
 License: Apache-2.0. Each model keeps its own license, recorded with its files.

@@ -1,0 +1,282 @@
+# Builds the three llama-cpp-python wheels nobody publishes (spec B4), from
+# JamePeng's fork at a pinned commit, for CPython 3.14. Each job smoke-tests
+# its wheel (embeds two strings with the 0.6B embedder) before uploading it.
+# The maintainer passes the artifacts to `tools/build_packs.py --wheels`.
+
+name: llama.cpp wheels
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LLAMA_REPO: JamePeng/llama-cpp-python
+  LLAMA_REF: 528cf248460b49312597db98eb4f4e74a73214b8
+  VULKAN_SDK_VERSION: "1.4.341.0"
+  VULKAN_SDK_LINUX_SHA256: ed66477d587a5587dc3601b1c2cdcc1fab5529c505f53a00171876cecd9b4fbe
+  # JamePeng's CMakeLists forces LLAMA_OPENSSL=ON, so OpenSSL is kept out by
+  # hiding the package from cpp-httplib's optional find_package(OpenSSL).
+  COMMON_CMAKE_ARGS: >-
+    -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_TOOLS=OFF
+    -DLLAMA_BUILD_SERVER=OFF -DLLAMA_BUILD_UI=OFF -DLLAMA_USE_PREBUILT_UI=OFF
+    -DLLAMA_OPENSSL=OFF -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=ON
+    -DGGML_CPU=ON -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF
+  SMOKE_MODEL_SHA256: 06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439
+  SMOKE_MODEL_FILE: models/qwen3-embed-0.6b/Qwen3-Embedding-0.6B-Q8_0.gguf
+
+jobs:
+  wheel:
+    name: ${{ matrix.artifact }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - artifact: llama-linux-x64-vulkan
+            runner: ubuntu-24.04
+            image: quay.io/pypa/manylinux_2_28_x86_64
+            plat: manylinux_2_28_x86_64
+            label: vulkan
+            wheel: llama_cpp_python-0.4.2+vulkan-cp314-cp314-manylinux_2_28_x86_64.whl
+            cmake_args: >-
+              -DGGML_BACKEND_DL=ON -DGGML_CPU_ALL_VARIANTS=ON -DGGML_VULKAN=ON
+              -DCMAKE_PREFIX_PATH=/opt/vulkan
+              -DVulkan_INCLUDE_DIR=/opt/vulkan-sdk/1.4.341.0/x86_64/include
+              -DVulkan_LIBRARY=/opt/vulkan/lib/libvulkan.so
+              -DVulkan_GLSLC_EXECUTABLE=/opt/vulkan/bin/glslc
+            repair_args: --exclude libvulkan.so.1
+          - artifact: llama-linux-arm64-cpu
+            runner: ubuntu-24.04-arm
+            image: quay.io/pypa/manylinux_2_28_aarch64
+            plat: manylinux_2_28_aarch64
+            label: cpu
+            wheel: llama_cpp_python-0.4.2+cpu-cp314-cp314-manylinux_2_28_aarch64.whl
+            # JamePeng's install list names only x86 CPU variants: one plain armv8-a CPU backend.
+            cmake_args: -DGGML_CPU_ARM_ARCH=armv8-a
+            repair_args: ""
+          - artifact: llama-win-x64-vulkan
+            runner: windows-2022
+            label: vulkan
+            wheel: llama_cpp_python-0.4.2+vulkan-cp314-cp314-win_amd64.whl
+            # LLVM toolchain: MSVC skips several CPU variants (JamePeng's recipe).
+            cmake_args: >-
+              -DCMAKE_TOOLCHAIN_FILE=vendor/llama.cpp/cmake/x64-windows-llvm.cmake
+              -DGGML_BACKEND_DL=ON -DGGML_CPU_ALL_VARIANTS=ON -DGGML_VULKAN=ON
+    env:
+      LABEL: ${{ matrix.label }}
+      WHEEL: ${{ matrix.wheel }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1.13.0
+        with:
+          arch: x64
+
+      - name: Check out workbench (smoke test and model fetcher)
+        uses: actions/checkout@v7
+
+      - name: Check out llama-cpp-python at the pinned commit
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.LLAMA_REPO }}
+          ref: ${{ env.LLAMA_REF }}
+          submodules: recursive
+          path: llama-cpp-python
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Set the version label
+        working-directory: llama-cpp-python
+        run: |
+          python - <<'EOF'
+          import os, pathlib
+          p = pathlib.Path("llama_cpp/__init__.py")
+          s = p.read_text()
+          old, new = '__version__ = "0.4.2"', f'__version__ = "0.4.2+{os.environ["LABEL"]}"'
+          if s.count(old) != 1:
+              raise SystemExit(f"expected one {old!r} line in {p}")
+          p.write_text(s.replace(old, new))
+          print(new)
+          EOF
+
+      - name: Keep libllama within manylinux_2_28
+        if: runner.os == 'Linux'
+        working-directory: llama-cpp-python/vendor/llama.cpp
+        # std::random_device::entropy() needs GLIBCXX_3.4.25; auditwheel's
+        # manylinux_2_28 policy stops at 3.4.24. libstdc++'s random_device is
+        # a true RNG on Linux, so the probe is skipped (same result there).
+        run: |
+          python - <<'EOF'
+          import pathlib
+          p = pathlib.Path("src/llama-sampler.cpp")
+          s = p.read_text()
+          old = "static bool is_rd_prng = std::random_device().entropy() == 0;"
+          if s.count(old) != 1:
+              raise SystemExit(f"expected one {old!r} in {p}")
+          p.write_text(s.replace(old, "static bool is_rd_prng = false;  // workbench: see llama-wheels.yml"))
+          print("patched", p)
+          EOF
+
+      - name: Build the wheel in ${{ matrix.image }}
+        if: runner.os == 'Linux'
+        env:
+          IMAGE: ${{ matrix.image }}
+          PLAT: ${{ matrix.plat }}
+          CMAKE_ARGS: ${{ env.COMMON_CMAKE_ARGS }} ${{ matrix.cmake_args }}
+          REPAIR_ARGS: ${{ matrix.repair_args }}
+          BUILD: |
+            if [ "$LABEL" = vulkan ]; then
+              dnf install -y -q xz bzip2
+              curl -fsSL https://micro.mamba.pm/api/micromamba/linux-64/latest -o /tmp/micromamba.tar.bz2
+              mkdir -p /tmp/micromamba
+              tar -xjf /tmp/micromamba.tar.bz2 -C /tmp/micromamba bin/micromamba
+              /tmp/micromamba/bin/micromamba create -q -y -p /opt/vulkan -c conda-forge shaderc libvulkan-loader spirv-headers
+              /opt/vulkan/bin/glslc --version
+              curl -fsSL "https://sdk.lunarg.com/sdk/download/$VULKAN_SDK_VERSION/linux/vulkansdk-linux-x86_64-$VULKAN_SDK_VERSION.tar.xz" -o /tmp/vulkan-sdk.tar.xz
+              echo "$VULKAN_SDK_LINUX_SHA256  /tmp/vulkan-sdk.tar.xz" | sha256sum -c -
+              mkdir -p /opt/vulkan-sdk
+              tar -xf /tmp/vulkan-sdk.tar.xz -C /opt/vulkan-sdk
+              test -f "/opt/vulkan-sdk/$VULKAN_SDK_VERSION/x86_64/include/vulkan/vulkan.h"
+            fi
+            PY=/opt/python/cp314-cp314/bin/python
+            export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+            cd /w/llama-cpp-python
+            echo "CMAKE_ARGS=$CMAKE_ARGS"
+            $PY -m pip install -q --root-user-action=ignore build wheel
+            $PY -m build --wheel --outdir dist
+            # Trim before the repair: ggml also installs every backend into
+            # llama_cpp/bin, which llama_cpp never loads (it loads llama_cpp/lib),
+            # and llama_cpp/include holds headers. JamePeng's wheels ship neither.
+            # JamePeng's CMakeLists also adds link folders to the install RPATH,
+            # so libggml-vulkan.so would search the build host's /opt/vulkan/lib.
+            $PY -m wheel unpack dist/*.whl -d /tmp/unpacked
+            cd "/tmp/unpacked/llama_cpp_python-0.4.2+$LABEL"
+            rm -rf llama_cpp/bin llama_cpp/include
+            for f in llama_cpp/lib/*.so*; do
+              rp=$(patchelf --print-rpath "$f")
+              if [ "$rp" != '$ORIGIN' ]; then echo "RUNPATH $rp -> \$ORIGIN: ${f##*/}"; patchelf --set-rpath '$ORIGIN' "$f"; fi
+            done
+            cd /w/llama-cpp-python
+            mkdir -p /tmp/trimmed
+            $PY -m wheel pack "/tmp/unpacked/llama_cpp_python-0.4.2+$LABEL" -d /tmp/trimmed
+            export LD_LIBRARY_PATH=/opt/vulkan/lib
+            auditwheel show /tmp/trimmed/*.whl || true
+            auditwheel repair ${REPAIR_ARGS:-} --plat "$PLAT" --only-plat -w /w/wheelhouse /tmp/trimmed/*.whl
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/w" \
+            -e LABEL -e WHEEL -e PLAT -e CMAKE_ARGS -e REPAIR_ARGS \
+            -e VULKAN_SDK_VERSION -e VULKAN_SDK_LINUX_SHA256 \
+            "$IMAGE" bash -euxo pipefail -c "$BUILD"
+
+      - name: Install the Vulkan SDK
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install vulkan-sdk --version="$env:VULKAN_SDK_VERSION" --no-progress -y
+          $vulkanSdk = Join-Path 'C:\VulkanSDK' $env:VULKAN_SDK_VERSION
+          if (-not (Test-Path $vulkanSdk)) { throw "Vulkan SDK not found at $vulkanSdk" }
+          "VULKAN_SDK=$vulkanSdk" >> $env:GITHUB_ENV
+          "$vulkanSdk\Bin" >> $env:GITHUB_PATH
+          & "$vulkanSdk\Bin\glslc.exe" --version
+          clang --version
+
+      - name: Build the wheel
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: llama-cpp-python
+        env:
+          CMAKE_ARGS: ${{ env.COMMON_CMAKE_ARGS }} ${{ matrix.cmake_args }}
+          CMAKE_GENERATOR: Ninja Multi-Config
+        run: |
+          Write-Output "CMAKE_ARGS=$env:CMAKE_ARGS"
+          python -m pip install -q build wheel ninja
+          python -m build --wheel --outdir dist
+          if ($LASTEXITCODE -ne 0) { throw "build failed" }
+          $built = @(Get-ChildItem dist -Filter *.whl)
+          if ($built.Count -ne 1) { throw "expected one wheel in dist, found $($built.Count)" }
+          # Trim and repack. JamePeng's CMakeLists always copies VS's debug_nonredist
+          # libomp140.x86_64.dll; with GGML_OPENMP=OFF nothing uses it. ggml also
+          # installs every DLL again into llama_cpp\bin, which llama_cpp never loads,
+          # and llama_cpp\include holds headers. JamePeng's wheels ship neither.
+          python -m wheel unpack $built[0].FullName -d unpacked
+          if ($LASTEXITCODE -ne 0) { throw "unpack failed" }
+          Push-Location -LiteralPath 'unpacked\llama_cpp_python-0.4.2+vulkan'
+          Remove-Item -LiteralPath 'llama_cpp\lib\libomp140.x86_64.dll'
+          Remove-Item -Recurse -LiteralPath 'llama_cpp\bin', 'llama_cpp\include'
+          Pop-Location
+          New-Item -ItemType Directory -Force ..\wheelhouse | Out-Null
+          python -m wheel pack 'unpacked\llama_cpp_python-0.4.2+vulkan' -d ..\wheelhouse
+          if ($LASTEXITCODE -ne 0) { throw "repack failed" }
+
+      - name: Check the wheel name
+        run: |
+          ls -l wheelhouse
+          test "$(ls wheelhouse)" = "$WHEEL"
+
+      - name: Install the wheel into a fresh folder
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary :all: \
+            --target "$RUNNER_TEMP/site" "wheelhouse/$WHEEL"
+
+      - name: Check linked libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          site="$RUNNER_TEMP/site"
+          if [ -e "$site/llama_cpp_python.libs" ]; then
+            ls -l "$site/llama_cpp_python.libs"; echo "::error::auditwheel grafted libraries into the wheel"; exit 1
+          fi
+          for f in "$site"/llama_cpp/lib/*.so; do
+            echo "== ${f##*/}"; readelf -d "$f" | grep -E 'NEEDED|RPATH|RUNPATH' || true
+          done
+          if readelf -d "$site"/llama_cpp/lib/*.so | grep -E 'NEEDED.*(libssl|libcrypto|libgomp)'; then
+            echo "::error::a library links OpenSSL or libgomp"; exit 1
+          fi
+          if readelf -d "$site"/llama_cpp/lib/*.so | grep -E 'R(UN)?PATH' | grep -v -F 'path: [$ORIGIN]'; then
+            echo "::error::a library searches outside its own folder"; exit 1
+          fi
+
+      - name: Check linked libraries (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $lib = Join-Path $env:RUNNER_TEMP 'site\llama_cpp\lib'
+          $bad = @()
+          foreach ($dll in Get-ChildItem $lib -Filter *.dll) {
+            $deps = @(dumpbin /nologo /dependents $dll.FullName | Where-Object { $_ -match '^\s+\S+\.dll\s*$' } | ForEach-Object { $_.Trim() })
+            Write-Output "== $($dll.Name): $($deps -join ', ')"
+            $bad += $deps | Where-Object { $_ -match 'libssl|libcrypto|libomp' }
+          }
+          if ($bad) { throw "unexpected runtime dependencies: $($bad -join ', ')" }
+
+      - name: Cache the smoke-test model
+        uses: actions/cache@v6
+        with:
+          path: models/qwen3-embed-0.6b
+          key: model-qwen3-embed-0.6b-${{ env.SMOKE_MODEL_SHA256 }}
+
+      - name: Fetch the smoke-test model
+        run: |
+          python -c "import pathlib, sys; sys.path.insert(0, '.'); from workbench import catalog, fetch; m = {x.id: x for x in catalog.load(pathlib.Path('catalog.toml'))}['qwen3-embed-0.6b']; fetch.fetch_model(m, pathlib.Path('models'), pathlib.Path('.workbench/fetch'))"
+          ls -l models/qwen3-embed-0.6b
+
+      - name: Smoke test
+        run: |
+          PYTHONPATH="$RUNNER_TEMP/site" python tools/smoke_llama.py "$SMOKE_MODEL_FILE" "0.4.2+$LABEL"
+
+      - name: Upload the wheel
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: wheelhouse/${{ matrix.wheel }}
+          if-no-files-found: error
+          compression-level: 0

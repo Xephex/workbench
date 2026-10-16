@@ -156,18 +156,23 @@ jobs:
             echo "CMAKE_ARGS=$CMAKE_ARGS"
             $PY -m pip install -q --root-user-action=ignore build wheel
             $PY -m build --wheel --outdir dist
-            export LD_LIBRARY_PATH=/w/llama-cpp-python/llama_cpp/lib:/opt/vulkan/lib
-            auditwheel show dist/*.whl || true
-            auditwheel repair ${REPAIR_ARGS:-} --plat "$PLAT" --only-plat -w /tmp/repaired dist/*.whl
-            # JamePeng's CMakeLists adds link folders to the install RPATH, so
-            # libggml-vulkan.so would search the build host's /opt/vulkan/lib.
-            $PY -m wheel unpack /tmp/repaired/*.whl -d /tmp/unpacked
-            for f in /tmp/unpacked/*/llama_cpp/lib/*.so*; do
+            # Trim before the repair: ggml also installs every backend into
+            # llama_cpp/bin, which llama_cpp never loads (it loads llama_cpp/lib),
+            # and llama_cpp/include holds headers. JamePeng's wheels ship neither.
+            # JamePeng's CMakeLists also adds link folders to the install RPATH,
+            # so libggml-vulkan.so would search the build host's /opt/vulkan/lib.
+            $PY -m wheel unpack dist/*.whl -d /tmp/unpacked
+            cd "/tmp/unpacked/llama_cpp_python-0.4.2+$LABEL"
+            rm -rf llama_cpp/bin llama_cpp/include
+            for f in llama_cpp/lib/*.so*; do
               rp=$(patchelf --print-rpath "$f")
               if [ "$rp" != '$ORIGIN' ]; then echo "RUNPATH $rp -> \$ORIGIN: ${f##*/}"; patchelf --set-rpath '$ORIGIN' "$f"; fi
             done
-            mkdir -p /w/wheelhouse
-            $PY -m wheel pack /tmp/unpacked/* -d /w/wheelhouse
+            cd /w/llama-cpp-python
+            $PY -m wheel pack "/tmp/unpacked/llama_cpp_python-0.4.2+$LABEL" -d /tmp/trimmed
+            export LD_LIBRARY_PATH=/opt/vulkan/lib
+            auditwheel show /tmp/trimmed/*.whl || true
+            auditwheel repair ${REPAIR_ARGS:-} --plat "$PLAT" --only-plat -w /w/wheelhouse /tmp/trimmed/*.whl
         run: |
           docker run --rm -v "$GITHUB_WORKSPACE:/w" \
             -e LABEL -e WHEEL -e PLAT -e CMAKE_ARGS -e REPAIR_ARGS \
@@ -200,14 +205,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "build failed" }
           $built = @(Get-ChildItem dist -Filter *.whl)
           if ($built.Count -ne 1) { throw "expected one wheel in dist, found $($built.Count)" }
-          # JamePeng's CMakeLists always copies VS's debug_nonredist libomp140.x86_64.dll;
-          # with GGML_OPENMP=OFF nothing uses it, so it is dropped and the wheel repacked.
+          # Trim and repack. JamePeng's CMakeLists always copies VS's debug_nonredist
+          # libomp140.x86_64.dll; with GGML_OPENMP=OFF nothing uses it. ggml also
+          # installs every DLL again into llama_cpp\bin, which llama_cpp never loads,
+          # and llama_cpp\include holds headers. JamePeng's wheels ship neither.
           python -m wheel unpack $built[0].FullName -d unpacked
-          $root = @(Get-ChildItem unpacked -Directory)[0].FullName
-          $omp = Join-Path $root 'llama_cpp\lib\libomp140.x86_64.dll'
-          if (Test-Path -LiteralPath $omp) { Remove-Item -LiteralPath $omp; Write-Output "removed libomp140.x86_64.dll" }
+          if ($LASTEXITCODE -ne 0) { throw "unpack failed" }
+          Push-Location -LiteralPath 'unpacked\llama_cpp_python-0.4.2+vulkan'
+          Remove-Item -LiteralPath 'llama_cpp\lib\libomp140.x86_64.dll'
+          Remove-Item -Recurse -LiteralPath 'llama_cpp\bin', 'llama_cpp\include'
+          Pop-Location
           New-Item -ItemType Directory -Force ..\wheelhouse | Out-Null
-          python -m wheel pack $root -d ..\wheelhouse
+          python -m wheel pack 'unpacked\llama_cpp_python-0.4.2+vulkan' -d ..\wheelhouse
           if ($LASTEXITCODE -ne 0) { throw "repack failed" }
 
       - name: Check the wheel name
@@ -224,7 +233,9 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           site="$RUNNER_TEMP/site"
-          ls -l "$site/llama_cpp_python.libs" 2>/dev/null || echo "no grafted libraries"
+          if [ -e "$site/llama_cpp_python.libs" ]; then
+            ls -l "$site/llama_cpp_python.libs"; echo "::error::auditwheel grafted libraries into the wheel"; exit 1
+          fi
           for f in "$site"/llama_cpp/lib/*.so; do
             echo "== ${f##*/}"; readelf -d "$f" | grep -E 'NEEDED|RPATH|RUNPATH' || true
           done

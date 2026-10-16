@@ -6,6 +6,8 @@ import dataclasses
 
 from workbench import hw
 
+PACKS = ("win-x64-cuda12", "win-x64-vulkan", "linux-x64-cuda13", "linux-x64-vulkan", "linux-arm64-cpu",
+         "macos-arm64-metal")
 TURING = (7, 5)
 CUDA_MIN = {"windows": (12080, "570"), "linux": (13000, "580")}
 

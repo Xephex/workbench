@@ -1,10 +1,10 @@
-"""Commands. Stage 1 plan 1: status, models, setup."""
+"""Commands. Stage 1: status, models, setup."""
 
 from __future__ import annotations
 
 import argparse, pathlib
 
-from workbench import catalog, fetch, hw, packs
+from workbench import catalog, fetch, hw, install, packs
 from workbench.ui import ask, gb, say
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -26,6 +26,8 @@ def _profile_lines(p: hw.Profile) -> None:
     say(f"Platform pack: {choice.pack or 'not supported'}")
     if choice.note:
         say(f"  {choice.note}")
+    pack = install.installed_pack(ROOT)
+    say(f"Packages: {pack + ' installed' if pack else 'not installed (run setup)'}")
 
 
 def plan_downloads(chosen: list[catalog.Model], models_dir: pathlib.Path) -> int:
@@ -138,9 +140,19 @@ def cmd_models(a, p, models) -> int:
 
 def cmd_setup(a, p, models) -> int:
     _profile_lines(p)
-    choice = packs.choose_pack(p)
-    if choice.pack is None:
+    pack = a.pack or packs.choose_pack(p).pack
+    if pack is None:
         return 1
+    say("")
+    say(f"Installing the {pack} packages (offline, from this folder)...")
+    try:
+        state = install.install_pack(ROOT, pack, with_tracing=not a.no_trace_viewer)
+    except install.InstallError as e:
+        say(f"  {e}")
+        return 1
+    say(f"  Packages {state}.")
+    if a.packages_only:
+        return 0
     say("")
     return cmd_models(argparse.Namespace(add=None, remove=None, yes=a.yes), p, models)
 
@@ -155,6 +167,9 @@ def main(argv: list[str]) -> int:
     m.add_argument("--yes", action="store_true")
     s = sub.add_parser("setup")
     s.add_argument("--yes", action="store_true")
+    s.add_argument("--no-trace-viewer", action="store_true", help="skip the trace viewer (saves about 170 MB)")
+    s.add_argument("--packages-only", action="store_true", help="install packages, choose no models")
+    s.add_argument("--pack", choices=packs.PACKS, help="use this platform pack instead of the detected one")
     a = ap.parse_args(argv)
     p = hw.detect(MODELS)
     models = catalog.load(CATALOG)

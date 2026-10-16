@@ -2,7 +2,7 @@ import io, os, pathlib, tempfile, unittest
 from unittest import mock
 
 from tests import gitfixture
-from workbench import catalog, cli, hw
+from workbench import catalog, cli, hw, install
 
 GB = 1_000_000_000
 
@@ -63,9 +63,13 @@ chunks = [{{ blob = "ab", bytes = 1 }}]
             mock.patch.object(cli, "MODELS", base / "models"),
             mock.patch.object(cli, "WORK", base / "work"),
             mock.patch.object(hw, "detect", return_value=fake_profile()),
+            mock.patch.object(cli, "ROOT", base),
         ]
+        self.install_pack = mock.patch.object(install, "install_pack", return_value="installed")
+        self.patches.append(self.install_pack)
         for p in self.patches:
             p.start()
+        self.installed = install.install_pack  # the mock
         self.base = base
 
     def tearDown(self):
@@ -197,6 +201,47 @@ chunks = [{{ blob = "ab", bytes = 1 }}]
             code, out = self.run_cli("models", "--add", "tiny")
         self.assertEqual(code, 1)
         self.assertIn("No space left on device", out)
+
+    def test_setup_installs_packages_then_models(self):
+        code, out = self.run_cli("setup", "--yes")
+        self.assertEqual(code, 0, out)
+        self.installed.assert_called_once_with(self.base, "linux-x64-vulkan", with_tracing=True)
+        self.assertIn("Packages installed.", out)
+
+    def test_setup_no_trace_viewer(self):
+        self.run_cli("setup", "--yes", "--no-trace-viewer")
+        self.installed.assert_called_once_with(self.base, "linux-x64-vulkan", with_tracing=False)
+
+    def test_setup_packages_only_fetches_no_models(self):
+        from workbench import fetch as wfetch
+        with mock.patch.object(wfetch, "fetch_model") as fm:
+            code, out = self.run_cli("setup", "--yes", "--packages-only")
+        self.assertEqual(code, 0, out)
+        fm.assert_not_called()
+        self.assertFalse((self.base / "models").exists())
+
+    def test_setup_pack_override(self):
+        code, out = self.run_cli("setup", "--yes", "--packages-only", "--pack", "linux-x64-cuda13")
+        self.assertEqual(code, 0, out)
+        self.installed.assert_called_once_with(self.base, "linux-x64-cuda13", with_tracing=True)
+
+    def test_setup_unknown_pack_override(self):
+        with self.assertRaises(SystemExit):
+            self.run_cli("setup", "--pack", "nope")
+
+    def test_setup_reports_install_error_and_fetches_nothing(self):
+        self.installed.side_effect = install.InstallError("Packages for linux-x64-vulkan are not published yet.")
+        code, out = self.run_cli("setup", "--yes")
+        self.assertEqual(code, 1)
+        self.assertIn("not published yet", out)
+        self.assertFalse((self.base / "models").exists())
+
+    def test_status_shows_packages(self):
+        code, out = self.run_cli("status")
+        self.assertIn("Packages: not installed (run setup)", out)
+        with mock.patch.object(install, "installed_pack", return_value="linux-x64-vulkan"):
+            code, out = self.run_cli("status")
+        self.assertIn("Packages: linux-x64-vulkan installed", out)
 
 
 if __name__ == "__main__":

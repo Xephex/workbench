@@ -3,3 +3,4 @@
 /.workbench/
 __pycache__/
 *.pyc
+.superpowers/

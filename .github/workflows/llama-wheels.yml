@@ -154,16 +154,19 @@ jobs:
             export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
             cd /w/llama-cpp-python
             echo "CMAKE_ARGS=$CMAKE_ARGS"
-            $PY -m pip install -q --root-user-action=ignore build
+            $PY -m pip install -q --root-user-action=ignore build wheel
             $PY -m build --wheel --outdir dist
             export LD_LIBRARY_PATH=/w/llama-cpp-python/llama_cpp/lib:/opt/vulkan/lib
-            auditwheel -v show dist/*.whl 2>&1 | grep -v '^DEBUG' || true
-            for f in llama_cpp/lib/*.so*; do
-              [ -L "$f" ] && continue
-              echo "== $f"; objdump -T "$f" | grep -oE '(GLIBC|GLIBCXX|CXXABI|GCC)_[0-9A-Z_.]+' | sort -uV | tail -4 || true
+            auditwheel show dist/*.whl || true
+            auditwheel repair ${REPAIR_ARGS:-} --plat "$PLAT" --only-plat -w /tmp/repaired dist/*.whl
+            # JamePeng's CMakeLists adds link folders to the install RPATH, so
+            # libggml-vulkan.so would search the build host's /opt/vulkan/lib.
+            $PY -m wheel unpack /tmp/repaired/*.whl -d /tmp/unpacked
+            for f in /tmp/unpacked/*/llama_cpp/lib/*.so*; do
+              rp=$(patchelf --print-rpath "$f")
+              if [ "$rp" != '$ORIGIN' ]; then echo "RUNPATH $rp -> \$ORIGIN: ${f##*/}"; patchelf --set-rpath '$ORIGIN' "$f"; fi
             done
-            auditwheel repair ${REPAIR_ARGS:-} --plat "$PLAT" --only-plat -w /w/wheelhouse dist/*.whl
-            auditwheel show "/w/wheelhouse/$WHEEL"
+            $PY -m wheel pack /tmp/unpacked/* -d /w/wheelhouse
         run: |
           docker run --rm -v "$GITHUB_WORKSPACE:/w" \
             -e LABEL -e WHEEL -e PLAT -e CMAKE_ARGS -e REPAIR_ARGS \
@@ -226,6 +229,9 @@ jobs:
           done
           if readelf -d "$site"/llama_cpp/lib/*.so | grep -E 'NEEDED.*(libssl|libcrypto|libgomp)'; then
             echo "::error::a library links OpenSSL or libgomp"; exit 1
+          fi
+          if readelf -d "$site"/llama_cpp/lib/*.so | grep -E 'R(UN)?PATH' | grep -v -F 'path: [$ORIGIN]'; then
+            echo "::error::a library searches outside its own folder"; exit 1
           fi
 
       - name: Check linked libraries (Windows)

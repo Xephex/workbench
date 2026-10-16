@@ -1,0 +1,79 @@
+name: packs
+
+# Install every committed platform pack offline, the way a user does: sparse
+# clone, then `setup --packages-only`. Runners have no GPU, so the CUDA packs
+# prove the install and the CPU fallback; the Vulkan/CPU packs are the default
+# choice on these runners.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["packs/**", "workbench/install.py", ".github/workflows/packs.yml"]
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-2022, pack: win-x64-vulkan }
+          - { os: windows-2022, pack: win-x64-cuda12 }
+          - { os: ubuntu-24.04, pack: linux-x64-vulkan }
+          - { os: ubuntu-24.04, pack: linux-x64-cuda13 }
+          - { os: ubuntu-24.04-arm, pack: linux-arm64-cpu }
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.pack }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Sparse clone of this commit (what users run)
+        run: |
+          git clone --filter=blob:none --sparse --no-checkout "https://github.com/${GITHUB_REPOSITORY}" wb
+          git -C wb checkout -q "${GITHUB_SHA}"
+
+      - name: Skip packs that are not committed yet
+        id: have
+        run: |
+          if git -C wb ls-tree -d --name-only HEAD "packs/${{ matrix.pack }}" | grep -q .; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::packs/${{ matrix.pack }} is not committed yet; skipping"
+          fi
+
+      - name: setup --packages-only
+        if: steps.have.outputs.yes == 'true'
+        working-directory: wb
+        run: python workbench.py setup --packages-only --pack ${{ matrix.pack }}
+
+      - name: Installed stack imports; no .exe; Windows has no monty
+        if: steps.have.outputs.yes == 'true'
+        working-directory: wb
+        run: |
+          python -I - <<'EOF'
+          import pathlib, sys
+          sys.path.insert(0, ".")
+          from workbench import install
+          root = pathlib.Path(".")
+          assert install.installed_pack(root) == "${{ matrix.pack }}", install.installed_pack(root)
+          assert install.activate(root)
+          import fastapi, gradio, phoenix, opentelemetry.sdk, llama_cpp
+          print("fastapi", fastapi.__version__, "gradio", gradio.__version__, "llama_cpp", llama_cpp.__version__)
+          print(llama_cpp.llama_print_system_info().decode())
+          exes = [str(p) for p in install.site_dir(root).rglob("*") if p.suffix.lower() == ".exe"]
+          assert not exes, exes
+          if sys.platform == "win32":
+              import importlib.util
+              assert importlib.util.find_spec("pydantic_monty") is None, "monty must not be installed on Windows"
+          print("ok")
+          EOF
+
+      - name: Second run is up to date
+        if: steps.have.outputs.yes == 'true'
+        working-directory: wb
+        run: python workbench.py setup --packages-only --pack ${{ matrix.pack }} | tee out.txt && grep -q "Packages up to date" out.txt

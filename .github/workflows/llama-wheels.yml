@@ -7,8 +7,6 @@ name: llama.cpp wheels
 
 on:
   workflow_dispatch:
-  push:  # TEMPORARY: lets the branch run before the file is on main; remove before merge
-    branches: [plan2-llama-wheels]
 
 permissions:
   contents: read

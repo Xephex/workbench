@@ -29,6 +29,11 @@ class Client:
     def peek(self):
         try:
             result = self.request('GET', '/wb/status', timeout=1)
+        except ClientError as exc:
+            # Another program on this port, commonly an older local server, has no Workbench status route.
+            if str(exc) == 'HTTP 404':
+                return None
+            raise
         except urllib.error.URLError as exc:
             if isinstance(exc.reason, ConnectionRefusedError):
                 return None

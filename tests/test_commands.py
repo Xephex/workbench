@@ -1,4 +1,4 @@
-import argparse, contextlib, io, json, pathlib, tempfile, unittest
+import argparse, contextlib, email.message, io, json, pathlib, tempfile, unittest, urllib.error
 from unittest import mock
 from workbench import cli
 from workbench.client import Client, session, ClientError
@@ -107,6 +107,15 @@ class LiveModelsTest(unittest.TestCase):
         install_pack.assert_not_called()
         self.assertEqual(fake.request.call_args_list[1].args,
                          ('POST', '/wb/models', {'action': 'remove', 'model': 'chat'}))
+
+    def test_foreign_404_is_not_a_running_workbench(self):
+        err = urllib.error.HTTPError(
+            'http://127.0.0.1:8080/wb/status', 404, 'Not Found', email.message.EmailMessage(),
+            io.BytesIO(b'<html>404</html>'))
+        client = Client()
+        with mock.patch.object(client.opener, 'open', side_effect=err):
+            self.assertIsNone(client.peek())
+        err.close()
 
     def test_missing_server_falls_back_and_probe_errors_do_not(self):
         args = argparse.Namespace(add=['chat'], remove=None, yes=False)

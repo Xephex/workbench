@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import argparse, json, pathlib
+import argparse, json, pathlib, sys
 
 from workbench import catalog, fetch, hw, install, packs
 from workbench.ui import ask, gb, say
@@ -13,21 +13,29 @@ WORK = ROOT / ".workbench" / "fetch"
 CATALOG = ROOT / "catalog.toml"
 
 
-def _profile_lines(p: hw.Profile) -> None:
-    say(f"Machine: {p.os} {p.arch}{' (WSL)' if p.wsl else ''}, {p.cpu_name}, {p.cpu_cores} cores")
-    say(f"RAM: {gb(p.ram_bytes)}   free disk for models: {gb(p.disk_free_bytes)}")
+def machine_lines(p: hw.Profile) -> list[str]:
+    lines = [
+        f"Machine: {p.os} {p.arch}{' (WSL)' if p.wsl else ''}, {p.cpu_name}, {p.cpu_cores} cores",
+        f"RAM: {gb(p.ram_bytes)}   free disk for models: {gb(p.disk_free_bytes)}",
+    ]
     for g in p.gpus:
         vram = gb(g.vram_bytes) if g.vram_bytes else "shared memory"
-        say(f"GPU: {g.name} ({vram}{', driver ' + g.driver if g.driver else ''})")
+        lines.append(f"GPU: {g.name} ({vram}{', driver ' + g.driver if g.driver else ''})")
     if not p.gpus:
-        say("GPU: none found (models run on the CPU)")
-    say(f"Tier: {p.tier}")
+        lines.append("GPU: none found (models run on the CPU)")
+    lines.append(f"Tier: {p.tier}")
     choice = packs.choose_pack(p)
-    say(f"Platform pack: {choice.pack or 'not supported'}")
+    lines.append(f"Platform pack: {choice.pack or 'not supported'}")
     if choice.note:
-        say(f"  {choice.note}")
+        lines.append(f"  {choice.note}")
     pack = install.installed_pack(ROOT)
-    say(f"Packages: {pack + ' installed' if pack else 'not installed (run setup)'}")
+    lines.append(f"Packages: {pack + ' installed' if pack else 'not installed (run setup)'}")
+    return lines
+
+
+def _profile_lines(p: hw.Profile) -> None:
+    for line in machine_lines(p):
+        say(line)
 
 
 def plan_downloads(chosen: list[catalog.Model], models_dir: pathlib.Path) -> int:
@@ -158,7 +166,16 @@ def cmd_setup(a, p, models) -> int:
 
 
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(prog="workbench.py")
+    if argv == ["menu"] or (not argv and sys.stdin.isatty() and sys.stdout.isatty()):
+        if not sys.stdin.isatty() or not sys.stdout.isatty():
+            say("The menu needs a terminal. Run workbench.py setup, or workbench.py update.")
+            return 2
+        from workbench.desk import run
+        return run(ROOT, MODELS, CATALOG)
+    ap = argparse.ArgumentParser(
+        prog="workbench.py",
+        description="With no arguments in a terminal, this opens a mouse-capable menu.",
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
     status = sub.add_parser("status")
     status.add_argument('--model')
@@ -175,7 +192,19 @@ def main(argv: list[str]) -> int:
     s.add_argument("--no-trace-viewer", action="store_true", help="skip the trace viewer (saves about 170 MB)")
     s.add_argument("--packages-only", action="store_true", help="install packages, choose no models")
     s.add_argument("--pack", choices=packs.PACKS, help="use this platform pack instead of the detected one")
+    sub.add_parser("update", help="pull the latest workbench (fast-forward only)")
+    sub.add_parser("menu", help="open the menu")
+    if not argv:
+        ap.print_help()
+        return 2
     a = ap.parse_args(argv)
+    if a.cmd == "update":
+        from workbench.update import git_update
+        code, text = git_update(ROOT)
+        say(text)
+        if code == 0 and not text.startswith("Already up to date"):
+            say("Start workbench.py again to use the new version.")
+        return code
     if a.cmd in ('serve', 'chat', 'ask', 'embed', 'rank'):
         return commands.dispatch(a, ROOT, MODELS)
     if a.cmd in ('models', 'setup'):

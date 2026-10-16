@@ -13,9 +13,18 @@ Server details: [docs/server.md](docs/server.md).
 ```
 git clone --filter=blob:none --sparse https://github.com/Xephex/workbench
 cd workbench
-python workbench.py setup          (Windows: py -3.14 workbench.py setup)
-python workbench.py serve          (Windows: py -3.14 workbench.py serve)
+python workbench.py                (Windows: py -3.14 workbench.py)
 ```
+
+With no arguments, a terminal menu opens. Click a row, or use the arrow keys.
+Setup installs packages and lets you check the models to download. Models that
+fit this machine start checked. Models that would only run slowly stay in the
+list, marked slow, and start unchecked. Update pulls the latest workbench
+(fast-forward only) and stops if the checkout has local changes.
+
+The same actions are still commands: `python workbench.py setup`,
+`python workbench.py update`, and `python workbench.py serve`. On Windows,
+prefix those with `py -3.14`.
 
 On Windows, an NVIDIA GPU from Turing onward with driver 570 or newer gets
 `win-x64-cuda12`, which includes Blackwell. Setup says when it has to use

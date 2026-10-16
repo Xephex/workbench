@@ -1,5 +1,7 @@
 r"""Offline LLM workbench.
 
+    python workbench.py            menu: setup, update, models, status, serve
+    python workbench.py update     pull the latest workbench (fast-forward only)
     python workbench.py setup      detect this machine, install, choose and fetch models
     python workbench.py models     add or remove models
     python workbench.py serve      local server on 127.0.0.1:8080

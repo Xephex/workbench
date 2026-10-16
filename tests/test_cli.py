@@ -85,6 +85,13 @@ chunks = [{{ blob = "ab", bytes = 1 }}]
             code = cli.main(list(argv))
         return code, out.getvalue()
 
+    def test_no_args_prints_help_when_not_a_terminal(self):
+        with mock.patch("sys.stdin.isatty", return_value=False), mock.patch("sys.stdout.isatty", return_value=False):
+            code, out = self.run_cli()
+        self.assertEqual(code, 2)
+        self.assertIn("update", out)
+        self.assertIn("menu", out)
+
     def test_status_lists_models_with_reasons(self):
         code, out = self.run_cli("status")
         self.assertEqual(code, 0)

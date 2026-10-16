@@ -6,7 +6,7 @@ returns [] and detection carries on.
 
 from __future__ import annotations
 
-import ctypes, ctypes.util, dataclasses, os, pathlib, shutil, sys
+import ctypes, ctypes.util, dataclasses, os, pathlib, shutil, struct, sys
 
 GB = 1_000_000_000
 APPLE_GPU_SHARE = 0.66
@@ -454,8 +454,48 @@ def detect(models_dir: pathlib.Path, plat: str | None = None) -> Profile:
         probe_dir = probe_dir.parent
     return Profile(
         os=plat, arch=arch, wsl=plat == "linux" and is_wsl(), rosetta=rosetta,
-        cpu_name=cpu_name, cpu_cores=os.cpu_count() or 1,
+        cpu_name=cpu_name, cpu_cores=physical_cores(plat),
         ram_bytes=ram, ram_available_bytes=avail,
         disk_free_bytes=shutil.disk_usage(probe_dir).free,
         gpus=gpus, vulkan_loader=_vulkan_loader(),
     )
+
+
+def _count_core_records(data: bytes) -> int:
+    offset = count = 0
+    while offset < len(data):
+        if len(data) - offset < 8:
+            raise ValueError('Truncated processor topology')
+        relation, size = struct.unpack_from('<II', data, offset)
+        if size < 8 or offset + size > len(data):
+            raise ValueError('Invalid processor topology')
+        count += relation == 0
+        offset += size
+    return count
+
+def physical_cores(plat=None, sysfs=pathlib.Path('/sys/devices/system/cpu')) -> int:
+    plat = plat or ('windows' if sys.platform == 'win32' else 'linux')
+    try:
+        if plat == 'windows':
+            fn = ctypes.WinDLL('kernel32', use_last_error=True).GetLogicalProcessorInformationEx
+            fn.argtypes = [ctypes.c_uint32, ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
+            fn.restype = ctypes.c_int
+            size = ctypes.c_uint32()
+            fn(0, None, ctypes.byref(size))
+            if not size.value:
+                raise OSError('No processor topology')
+            buf = ctypes.create_string_buffer(size.value)
+            if not fn(0, buf, ctypes.byref(size)):
+                raise OSError('Cannot read processor topology')
+            return max(1, _count_core_records(buf.raw[:size.value]))
+        allowed = os.sched_getaffinity(0) if hasattr(os, 'sched_getaffinity') else None
+        cores = set()
+        for cpu in sysfs.glob('cpu[0-9]*'):
+            if not cpu.name[3:].isdigit() or (allowed is not None and int(cpu.name[3:]) not in allowed):
+                continue
+            t = cpu / 'topology'
+            cores.add(((t / 'physical_package_id').read_text().strip(),
+                       (t / 'core_id').read_text().strip()))
+        return len(cores) or 1
+    except (OSError, ValueError, AttributeError):
+        return 1

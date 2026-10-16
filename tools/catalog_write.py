@@ -21,6 +21,8 @@ def _value(v) -> str:
         return repr(v)
     if isinstance(v, list):
         return "[" + ", ".join(_value(x) for x in v) + "]"
+    if isinstance(v, dict):
+        return '{ ' + ', '.join(f'{k} = {_value(x)}' for k, x in v.items()) + ' }'
     raise TypeError(f"cannot write {type(v).__name__} to the catalog")
 
 
@@ -33,6 +35,8 @@ def dump(data: dict, header: str) -> str:
     for m in data.get("model", []):
         out.append("\n[[model]]\n")
         out += [f"{k} = {_value(m[k])}\n" for k in MODEL_KEYS]
+        if 'settings' in m:
+            out.append(f"settings = {_value(m['settings'])}\n")
         for f in m["files"]:
             out.append("\n[[model.files]]\n")
             out += [f"{k} = {_value(f[k])}\n" for k in FILE_KEYS]

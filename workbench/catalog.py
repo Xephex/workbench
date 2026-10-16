@@ -41,6 +41,7 @@ class Model:
     recommended_for: tuple[str, ...]
     license: str
     source: str
+    settings: dict[str, int] = dataclasses.field(default_factory=dict)
 
     @property
     def total_bytes(self) -> int:
@@ -78,11 +79,18 @@ def load(path: pathlib.Path) -> list[Model]:
         for key in REQUIRED:
             if key not in raw:
                 raise CatalogError(f"model {mid}: missing field {key}")
+        settings = raw.get('settings', {})
+        allowed = {'n_ctx', 'n_batch', 'n_ubatch', 'n_cpu_moe'}
+        if not isinstance(settings, dict) or set(settings) - allowed:
+            raise CatalogError(f'model {mid}: unsupported settings')
+        if any(type(v) is not int or v < 0 for v in settings.values()):
+            raise CatalogError(f'model {mid}: settings must be nonnegative integers')
         models.append(Model(
             id=raw["id"], kinds=tuple(raw["kinds"]), engine=raw["engine"],
             files=tuple(_file(mid, f) for f in raw["files"]),
             ram_gb=float(raw["ram_gb"]), vram_gb=float(raw["vram_gb"]),
             recommended_for=tuple(raw["recommended_for"]), license=raw["license"], source=raw["source"],
+            settings=dict(settings),
         ))
     return models
 

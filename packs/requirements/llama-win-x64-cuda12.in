@@ -1,0 +1,4 @@
+llama-cpp-python==0.4.2+cu128
+nvidia-cuda-runtime-cu12==12.9.79
+nvidia-cublas-cu12==12.9.2.10
+msvc-runtime==14.44.35112

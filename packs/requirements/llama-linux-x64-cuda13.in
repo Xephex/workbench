@@ -1,0 +1,3 @@
+llama-cpp-python==0.4.2+cu131
+nvidia-cuda-runtime==13.1.80
+nvidia-cublas==13.1.1.3

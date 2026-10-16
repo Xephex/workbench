@@ -4,16 +4,18 @@ import base64, hashlib, pathlib, zipfile
 
 
 def make_wheel(out_dir: pathlib.Path, name: str, version: str, script: bool = False,
-               extra_files: dict[str, bytes] | None = None) -> pathlib.Path:
-    files = {f"{name}/__init__.py": f"VERSION = {version!r}\n\n\ndef main():\n    print({name!r})\n".encode()}
+               extra_files: dict[str, bytes] | None = None, requires: tuple[str, ...] = ()) -> pathlib.Path:
+    mod = name.replace("-", "_")
+    files = {f"{mod}/__init__.py": f"VERSION = {version!r}\n\n\ndef main():\n    print({name!r})\n".encode()}
     files.update(extra_files or {})
-    info = f"{name}-{version}.dist-info"
-    files[f"{info}/METADATA"] = f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n".encode()
+    info = f"{mod}-{version}.dist-info"
+    meta = f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n" + "".join(f"Requires-Dist: {r}\n" for r in requires)
+    files[f"{info}/METADATA"] = meta.encode()
     files[f"{info}/WHEEL"] = b"Wheel-Version: 1.0\nGenerator: wheelfixture\nRoot-Is-Purelib: true\nTag: py3-none-any\n"
     if script:
-        files[f"{info}/entry_points.txt"] = f"[console_scripts]\n{name} = {name}:main\n".encode()
+        files[f"{info}/entry_points.txt"] = f"[console_scripts]\n{name} = {mod}:main\n".encode()
     record = []
-    path = out_dir / f"{name}-{version}-py3-none-any.whl"
+    path = out_dir / f"{mod}-{version}-py3-none-any.whl"
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
         for arc, data in files.items():
             z.writestr(arc, data)

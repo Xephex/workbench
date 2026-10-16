@@ -1,0 +1,4 @@
+# Spec B6: Windows packs leave out the monty sandbox (it ships monty.exe).
+pydantic-monty ; sys_platform != "win32"
+pydantic-monty-client ; sys_platform != "win32"
+pydantic-monty-runtime ; sys_platform != "win32"

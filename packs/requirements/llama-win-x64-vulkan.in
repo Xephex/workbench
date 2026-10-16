@@ -1,0 +1,2 @@
+llama-cpp-python==0.4.2+vulkan
+msvc-runtime==14.44.35112

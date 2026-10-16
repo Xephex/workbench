@@ -1,0 +1,8 @@
+# Server, app and tracing SDK: every pack (spec B4 "core").
+fastapi==0.143.2
+uvicorn==0.54.0
+sse-starlette==3.5.0
+gradio==6.30.0
+opentelemetry-sdk==1.45.1
+opentelemetry-exporter-otlp-proto-http==1.45.1
+openinference-semantic-conventions==0.1.41

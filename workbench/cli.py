@@ -107,7 +107,7 @@ def cmd_models(a, p, models) -> int:
     rec = catalog.recommended(list(offers.values()), p.tier)
     if a.yes:
         return _download(rec, p)
-    say("Models this machine can run (* = recommended):")
+    say("Models this machine can run (* fits this machine; a note means it runs, but slowly):")
     for o in offers.values():
         if o.runnable:
             star = "*" if o.model in rec else " "

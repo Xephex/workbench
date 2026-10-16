@@ -129,4 +129,11 @@ def offered(models: list[Model], profile: hw.Profile) -> list[Offer]:
 
 
 def recommended(offers: list[Offer], tier: str) -> list[Model]:
-    return [o.model for o in offers if o.runnable and tier in o.model.recommended_for]
+    """Models that fit the memory detected on this machine.
+
+    The static recommended_for tag is not the fit check. A runnable model
+    with a reason is the slow CPU fallback: it stays visible, and it is not
+    part of this default set. `tier` stays in the signature for callers.
+    """
+    del tier
+    return [o.model for o in offers if o.runnable and o.reason is None]

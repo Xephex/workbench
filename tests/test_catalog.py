@@ -67,6 +67,32 @@ class OfferTest(unittest.TestCase):
         rec = catalog.recommended(catalog.offered(self.models, prof), prof.tier)
         self.assertEqual([m.id for m in rec], ["tiny-chat", "mid-chat"])
 
+    def test_slow_cpu_fallback_is_not_the_default(self):
+        """A model that only fits by spilling to the CPU stays listed as slow."""
+        prof = profile(ram_gb=64, vram_gb=8)
+        offer = self.offers(prof)["big-moe"]
+        self.assertTrue(offer.runnable)
+        self.assertIsNotNone(offer.reason)
+        self.assertIn("slow", offer.reason or "")
+        rec = [m.id for m in catalog.recommended(catalog.offered(self.models, prof), prof.tier)]
+        self.assertEqual(rec, ["tiny-chat", "mid-chat"])
+
+    def test_real_catalog_selects_what_fits_the_detected_machine(self):
+        """8 GB of video memory and 64 GB of RAM is the other laptop, not a tier tag."""
+        models = catalog.load(pathlib.Path(__file__).parents[1] / "catalog.toml")
+        gpu = profile(ram_gb=64, vram_gb=8)
+        selected = [m.id for m in catalog.recommended(catalog.offered(models, gpu), gpu.tier)]
+        for mid in ("gpt-oss-20b", "qwen3.6-35b-a3b", "gemma4-e4b", "granite-4.2-8b"):
+            self.assertIn(mid, selected)
+        cpu = profile(ram_gb=64)
+        offers = {o.model.id: o for o in catalog.offered(models, cpu)}
+        self.assertTrue(offers["gpt-oss-20b"].runnable)
+        self.assertIsNotNone(offers["gpt-oss-20b"].reason)
+        self.assertIn("slow", offers["gpt-oss-20b"].reason or "")
+        cpu_selected = [m.id for m in catalog.recommended(catalog.offered(models, cpu), cpu.tier)]
+        self.assertNotIn("gpt-oss-20b", cpu_selected)
+        self.assertNotIn("qwen3.6-35b-a3b", cpu_selected)
+
     def test_recommended_never_includes_unrunnable(self):
         prof = profile(ram_gb=4)
         rec = catalog.recommended(catalog.offered(self.models, prof), "gpu-8")

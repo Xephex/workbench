@@ -222,7 +222,7 @@ def create_app(config, profile=None, models=None, engine=None, tracing=None):
             if o.runnable and fetch.is_installed(o.model, config.models)]}
     @app.get('/wb/models')
     async def model_state():
-        return {'models': [{'id': o.model.id, 'kinds': list(o.model.kinds), 'recommended': profile.tier in o.model.recommended_for,
+        return {'models': [{'id': o.model.id, 'kinds': list(o.model.kinds), 'recommended': o.runnable and o.reason is None,
             'installed': fetch.is_installed(o.model, config.models), 'runnable': o.runnable, 'reason': o.reason}
             for o in catalog.offered(models, profile)]}
     @app.get('/wb/status')

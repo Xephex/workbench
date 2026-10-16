@@ -8,7 +8,7 @@ install never breaks a working one. Pip's .exe launchers are deleted (R6).
 
 from __future__ import annotations
 
-import hashlib, json, os, pathlib, re, shutil, site, subprocess, sys
+import hashlib, json, os, pathlib, re, shutil, site, subprocess, sys, time, zipfile
 
 LAYERS = ("core", "llama", "tracing")
 OPTIONAL = frozenset({"tracing"})
@@ -30,12 +30,27 @@ def _marker(root: pathlib.Path) -> pathlib.Path:
     return root / ".workbench" / "site.json"
 
 
+def _load_dll(path: pathlib.Path) -> None:
+    import ctypes
+    ctypes.WinDLL(str(path))
+
+
 def activate(root: pathlib.Path) -> bool:
-    """Make the installed packages importable in this process."""
+    """Make the installed packages importable in this process, ahead of anything else on sys.path,
+    so the pinned, checked pack wins over packages the user installed elsewhere."""
     s = site_dir(root)
     if not s.is_dir():
         return False
-    site.addsitedir(str(s))
+    before = list(sys.path)
+    site.addsitedir(str(s))  # also runs the site's .pth files
+    added = [p for p in sys.path if p not in before]
+    sys.path[:] = added + before
+    if sys.platform == "win32":
+        # llama.cpp's DLLs import msvcp140.dll, which python.org's Python does not ship; the pack's
+        # msvc-runtime wheel puts it in the site folder, which Windows does not search (spec B4).
+        dll = s / "msvcp140.dll"
+        if dll.is_file():
+            _load_dll(dll)
     return True
 
 
@@ -156,9 +171,42 @@ def _digest(pack: str, layers: list[str], dirs: list[pathlib.Path]) -> str:
 
 
 def _remove_tree(path: pathlib.Path) -> None:
-    """Remove one of the fixed .workbench folders (site.new, site.old, wheels)."""
-    if path.parent.name == ".workbench" and path.name in ("site.new", "site.old", "wheels") and path.exists():
+    """Remove one of the fixed .workbench folders (site.new, site.old, wheels, tmp)."""
+    if path.parent.name == ".workbench" and path.name in ("site.new", "site.old", "wheels", "tmp") and path.exists():
         shutil.rmtree(path)
+
+
+def _rename(src: pathlib.Path, dst: pathlib.Path) -> None:
+    """Rename, retrying briefly: on Windows antivirus or an indexer can hold new files open for a moment."""
+    for attempt in range(5):
+        try:
+            src.replace(dst)
+            return
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.5 * (attempt + 1))
+
+
+def _unpacked_bytes(paths: list[pathlib.Path]) -> int:
+    total = 0
+    for p in paths:
+        try:
+            with zipfile.ZipFile(p) as z:
+                total += sum(i.file_size for i in z.infolist())
+        except (OSError, zipfile.BadZipFile):
+            total += p.stat().st_size
+    return total
+
+
+def _pip_env(root: pathlib.Path) -> dict[str, str]:
+    """pip's environment: no PIP_* settings and no config files at all (--isolated still reads the machine-wide
+    and site config), and its temp folder on the same drive as the install, where the disk check looked."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PIP_")}
+    env["PIP_CONFIG_FILE"] = os.devnull
+    tmp = str(root / ".workbench" / "tmp")
+    env.update(TMPDIR=tmp, TEMP=tmp, TMP=tmp)
+    return env
 
 
 def _pip(root: pathlib.Path, new_site: pathlib.Path, find_links: list[pathlib.Path],
@@ -170,8 +218,7 @@ def _pip(root: pathlib.Path, new_site: pathlib.Path, find_links: list[pathlib.Pa
         cmd += ["--find-links", str(d)]
     for lock in locks:
         cmd += ["-r", str(lock)]
-    env = {k: v for k, v in os.environ.items() if not k.startswith("PIP_")}
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=_pip_env(root))
 
 
 def install_pack(root: pathlib.Path, pack: str, with_tracing: bool = True) -> str:
@@ -193,33 +240,55 @@ def install_pack(root: pathlib.Path, pack: str, with_tracing: bool = True) -> st
     if current == digest and site_dir(root).is_dir():
         return "up to date"
 
-    need = 3 * sum(p.stat().st_size for d in dirs for p in d.iterdir() if p.is_file())
+    try:
+        _install(root, pack, layers, dirs, digest)
+    except OSError as e:
+        raise InstallError(f"Installing the packages failed: {e}. Close any running workbench (server, app or "
+                           "command), make sure the disk has free space, then run setup again.") from None
+    return "installed"
+
+
+def _install(root, pack, layers, dirs, digest) -> None:
+    work = root / ".workbench"
     work.mkdir(parents=True, exist_ok=True)
+    joined_root, new_site, old_site, tmp = work / "wheels", work / "site.new", work / "site.old", work / "tmp"
+    stored = [p for d in dirs for p in d.iterdir() if p.is_file()]
+    chunks = sum(p.stat().st_size for p in stored if PART.match(p.name))
+    unpacked = _unpacked_bytes([p for p in stored if p.suffix == ".whl"])
+    # joined chunks, then pip's staging copy and the new site, while the old site still exists
+    need = chunks + unpacked * 2 + chunks * 3
     free = shutil.disk_usage(work).free
     if free < need:
         raise InstallError(f"Not enough disk to install the packages: need about {need / 1e9:.1f} GB free, "
                            f"have {free / 1e9:.1f} GB.")
-    joined_root = work / "wheels"
     for d in dirs:
         join_chunks(d, joined_root / d.name)
         check_sums(d, joined_root / d.name)
 
-    new_site, old_site = work / "site.new", work / "site.old"
     _remove_tree(new_site)
+    _remove_tree(tmp)
+    tmp.mkdir()
     find_links = [p for d in dirs for p in (d, joined_root / d.name) if p.is_dir()]
     r = _pip(root, new_site, find_links, [d / "requirements.lock" for d in dirs])
+    _remove_tree(tmp)
     if r.returncode != 0:
         _remove_tree(new_site)
         tail = "\n".join("    " + line for line in r.stdout.strip().splitlines()[-15:])
         raise InstallError(f"pip could not install the packages:\n{tail}")
     remove_exe(new_site)
     _remove_tree(old_site)
-    if site_dir(root).exists():
-        site_dir(root).replace(old_site)
-    new_site.replace(site_dir(root))
+    had_site = site_dir(root).exists()
+    if had_site:
+        _rename(site_dir(root), old_site)
+    try:
+        _rename(new_site, site_dir(root))
+    except OSError:
+        if had_site:
+            _rename(old_site, site_dir(root))
+        raise
     _remove_tree(old_site)
     _remove_tree(joined_root)
-    tmp = _marker(root).with_name("site.json.tmp")
-    tmp.write_text(json.dumps({"pack": pack, "layers": layers, "digest": digest}))
-    tmp.replace(_marker(root))
-    return "installed"
+    marker = _marker(root)
+    tmp_marker = marker.with_name("site.json.tmp")
+    tmp_marker.write_text(json.dumps({"pack": pack, "layers": layers, "digest": digest}))
+    tmp_marker.replace(marker)

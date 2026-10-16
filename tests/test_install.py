@@ -1,4 +1,4 @@
-import os, pathlib, shutil, subprocess, sys, tempfile, unittest
+import json, os, pathlib, shutil, subprocess, sys, tempfile, unittest
 from unittest import mock
 
 from tests import wheelfixture
@@ -24,7 +24,7 @@ class InstallTest(unittest.TestCase):
         mk = wheelfixture.make_wheel
         self.big = mk(build, "wbbig", "1.0", extra_files={"wbbig/blob.bin": os.urandom(3000)})
         layers = {
-            "core": [mk(build, "wbcore", "1.0"), self.big],
+            "core": [mk(build, "wbcore", "1.0", extra_files={"wbcore/zeros.bin": bytes(2_000_000)}), self.big],
             "llama": [mk(build, "wbllama", "1.0", script=True, extra_files={"wbllama/tool.exe": b"MZ fake"})],
             "tracing": [mk(build, "wbtrace", "1.0")],
         }
@@ -150,6 +150,93 @@ class InstallTest(unittest.TestCase):
         with mock.patch("shutil.disk_usage", return_value=shutil._ntuple_diskusage(10, 10, 10)):
             with self.assertRaisesRegex(install.InstallError, "disk"):
                 install.install_pack(self.root, PACK)
+
+    def force_reinstall(self):
+        """Change the pack's digest without changing what pip installs (a comment in a lock)."""
+        lock = self.layer("core") / "requirements.lock"
+        lock.write_text(lock.read_text() + "# touched\n")
+
+    def test_machine_pip_config_ignored(self):
+        """Final review C1: pip still reads machine-wide config files under --isolated."""
+        xdg = pathlib.Path(self.tmp.name) / "xdg"
+        (xdg / "pip").mkdir(parents=True)
+        (xdg / "pip" / "pip.conf").write_text("[global]\nrequire-virtualenv = true\n"
+                                               "find-links = http://127.0.0.1:9/links/\n[install]\nuser = true\n")
+        appdata = pathlib.Path(self.tmp.name) / "programdata"
+        (appdata / "pip").mkdir(parents=True)
+        shutil.copy(xdg / "pip" / "pip.conf", appdata / "pip" / "pip.ini")
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_DIRS": str(xdg), "ProgramData": str(appdata)}):
+            self.assertEqual(install.install_pack(self.root, PACK), "installed")
+        self.assertTrue(self.importable("wbcore"))
+
+    def test_activate_puts_site_first(self):
+        """Final review I1: the pinned pack must win over packages the user installed elsewhere."""
+        install.install_pack(self.root, PACK)
+        with mock.patch.object(sys, "path", ["/somewhere/else", *sys.path]):
+            install.activate(self.root)
+            self.assertEqual(sys.path[0], str(install.site_dir(self.root)))
+            self.assertIn("/somewhere/else", sys.path)
+
+    def test_shadowing_module_loses(self):
+        install.install_pack(self.root, PACK)
+        shadow = pathlib.Path(self.tmp.name) / "shadow"
+        (shadow / "wbcore").mkdir(parents=True)
+        (shadow / "wbcore" / "__init__.py").write_text("VERSION = 'shadow'\n")
+        code = (f"import sys; sys.path.insert(0, {str(REPO)!r}); from workbench import install; import pathlib; "
+                f"install.activate(pathlib.Path({str(self.root)!r})); import wbcore; print(wbcore.VERSION)")
+        r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                           env=dict(os.environ, PYTHONPATH=str(shadow)))
+        self.assertEqual(r.stdout.strip(), "1.0", r.stderr)
+
+    def test_failed_swap_restores_old_site(self):
+        """Final review I2: if the new site cannot be moved into place, the old one comes back."""
+        install.install_pack(self.root, PACK)
+        self.force_reinstall()
+        real = pathlib.Path.replace
+
+        def replace(src, dst):
+            if pathlib.Path(src).name == "site.new":
+                raise PermissionError(13, "The process cannot access the file")
+            return real(src, dst)
+
+        with mock.patch.object(pathlib.Path, "replace", replace), mock.patch("time.sleep"):
+            with self.assertRaisesRegex(install.InstallError, "Close any running workbench"):
+                install.install_pack(self.root, PACK)
+        self.assertTrue(self.importable("wbcore"))
+        self.assertFalse((self.root / ".workbench" / "site.old").exists())
+
+    def test_file_error_is_install_error(self):
+        """Final review I2: disk full or a locked file is a message, not a traceback."""
+        with mock.patch.object(install, "join_chunks", side_effect=OSError(28, "No space left on device")):
+            with self.assertRaisesRegex(install.InstallError, "No space left on device"):
+                install.install_pack(self.root, PACK)
+
+    def test_disk_check_counts_unpacked_size(self):
+        """Final review I3: the 2 MB of zeros in wbcore unpack from a few KB; the check must see 2 MB."""
+        work = self.root / ".workbench"
+        work.mkdir()
+        with mock.patch("shutil.disk_usage", return_value=shutil._ntuple_diskusage(10**9, 10**9 - 1_000_000, 1_000_000)):
+            with self.assertRaisesRegex(install.InstallError, "disk"):
+                install.install_pack(self.root, PACK)
+
+    def test_pip_temp_files_stay_in_workbench(self):
+        """Final review I3: pip stages the install in its temp folder; keep that on the checked drive."""
+        env = install._pip_env(self.root)
+        tmp = str(self.root / ".workbench" / "tmp")
+        for key in ("TMPDIR", "TEMP", "TMP"):
+            self.assertEqual(env[key], tmp)
+        self.assertEqual(env["PIP_CONFIG_FILE"], os.devnull)
+        self.assertFalse(any(k.startswith("PIP_") and k != "PIP_CONFIG_FILE" for k in env))
+
+    def test_windows_activate_preloads_msvc_runtime(self):
+        """Final review I4: llama.cpp's DLLs need msvcp140.dll, which python.org's Python does not ship."""
+        install.install_pack(self.root, PACK)
+        dll = install.site_dir(self.root) / "msvcp140.dll"
+        dll.write_bytes(b"MZ")
+        with mock.patch.object(install.sys, "platform", "win32"), mock.patch.object(install, "_load_dll") as load, \
+                mock.patch("site.addsitedir"):
+            install.activate(self.root)
+        load.assert_called_once_with(dll)
 
 
 class FetchPackTest(unittest.TestCase):

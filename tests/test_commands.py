@@ -117,11 +117,33 @@ class LiveModelsTest(unittest.TestCase):
             self.assertIsNone(client.peek())
         err.close()
 
+    def test_probe_timeout_is_not_a_running_workbench(self):
+        # A closed Windows port and a listener that never answers both surface
+        # as a timeout. Setup must continue; only a Workbench status blocks it.
+        client = Client()
+        for failure in (
+            urllib.error.URLError(TimeoutError('timed out')),
+            urllib.error.URLError(OSError('timed out')),
+            TimeoutError('timed out'),
+        ):
+            with self.subTest(failure=type(failure).__name__), mock.patch.object(client.opener, 'open', side_effect=failure):
+                self.assertIsNone(client.peek())
+
+    def test_occupied_port_does_not_start_a_second_server(self):
+        with mock.patch.object(Client, 'peek', return_value=None), \
+             mock.patch('workbench.client.port_open', return_value=True), \
+             mock.patch('workbench.client.subprocess.Popen') as popen:
+            with self.assertRaisesRegex(ClientError, 'not answering as Workbench'):
+                with session(pathlib.Path('.')):
+                    pass
+        popen.assert_not_called()
+
     def test_missing_server_falls_back_and_probe_errors_do_not(self):
         args = argparse.Namespace(add=['chat'], remove=None, yes=False)
         with mock.patch.object(commands.Client, 'peek', return_value=None):
             self.assertIsNone(commands.models_running(args, pathlib.Path('.')))
         with mock.patch.object(commands.Client, 'peek', side_effect=ClientError('Unauthorized')), \
+             mock.patch.object(commands, 'port_open', return_value=False), \
              mock.patch.object(cli, 'cmd_models') as bootstrap, \
              mock.patch('sys.stdout', io.StringIO()):
             self.assertEqual(cli.main(['models', '--remove', 'chat']), 1)

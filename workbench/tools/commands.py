@@ -1,7 +1,7 @@
 from __future__ import annotations
 import dataclasses, json, os, pathlib, sys, threading, time, uuid
 from workbench import catalog, fetch, install
-from workbench.client import Client, ClientError, DEFAULT_BASE, read_key, share_key, session
+from workbench.client import Client, ClientError, DEFAULT_BASE, port_open, read_key, share_key, session
 from workbench.runtime import Config
 
 def add_parsers(sub):
@@ -162,7 +162,10 @@ def status(a, profile, models, root, models_dir):
             'models': [{'id': m.id, 'installed': fetch.is_installed(m, models_dir)} for m in chosen]}))
     else:
         cmd_status(a, profile, chosen)
-        print('Server: '+('not running' if server is None else json.dumps(server)))
+        if server is None and port_open(a.server):
+            print('Server: '+a.server+' is open but is not answering as Workbench')
+        else:
+            print('Server: '+('not running' if server is None else json.dumps(server)))
     return 0
 
 def models_running(a, root):

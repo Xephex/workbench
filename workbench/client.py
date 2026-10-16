@@ -1,5 +1,5 @@
 from __future__ import annotations
-import contextlib, json, os, pathlib, subprocess, sys, time, urllib.error, urllib.request, uuid
+import contextlib, json, os, pathlib, socket, subprocess, sys, time, urllib.error, urllib.parse, urllib.request, uuid
 
 DEFAULT_BASE = 'http://127.0.0.1:8080'
 class ClientError(RuntimeError):
@@ -27,22 +27,18 @@ class Client:
         with self.open(method, path, body, timeout) as response:
             return json.load(response)
     def peek(self):
+        # None means no confirmed Workbench. A closed port, a timeout, and a
+        # foreign 404 are the same answer: do not block setup or status on them.
+        # Windows often reports a closed localhost port as a timeout.
         try:
             result = self.request('GET', '/wb/status', timeout=1)
         except ClientError as exc:
-            # Another program on this port, commonly an older local server, has no Workbench status route.
             if str(exc) == 'HTTP 404':
                 return None
             raise
-        except urllib.error.URLError as exc:
-            if isinstance(exc.reason, ConnectionRefusedError):
-                return None
-            raise ClientError('The server is unreachable or responding too slowly') from None
-        except ConnectionRefusedError:
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError, ValueError):
             return None
-        except (TimeoutError, ConnectionError):
-            raise ClientError('The server is responding too slowly; no second server was started') from None
-        if result.get('service') != 'workbench':
+        if not isinstance(result, dict) or result.get('service') != 'workbench':
             raise ClientError('The selected port is serving another application')
         return result
     def stream(self, path, body, progress=None):
@@ -65,6 +61,21 @@ class Client:
                         raise ClientError(chunk['error']['message'])
                     yield chunk
             raise ClientError('Server disconnected before [DONE]')
+
+def port_open(base=DEFAULT_BASE, timeout=0.5):
+    """True only when a TCP connection to the server address is accepted."""
+    parsed = urllib.parse.urlparse(base)
+    host, port = parsed.hostname or '127.0.0.1', parsed.port or 80
+    sock = socket.socket()
+    sock.settimeout(timeout)
+    try:
+        sock.connect((host, port))
+    except OSError:
+        return False
+    else:
+        return True
+    finally:
+        sock.close()
 
 def read_key(root):
     key = os.environ.get('WORKBENCH_API_KEY')
@@ -98,6 +109,8 @@ def session(root, model=None, base=DEFAULT_BASE):
         return
     if base.rstrip('/') != DEFAULT_BASE:
         raise ClientError('The requested server is not running')
+    if port_open(base):
+        raise ClientError('127.0.0.1:8080 is open but is not answering as Workbench. Stop the program using that port and retry.')
     token = uuid.uuid4().hex
     folder = root/'data/server'
     folder.mkdir(parents=True, exist_ok=True)
@@ -105,7 +118,7 @@ def session(root, model=None, base=DEFAULT_BASE):
     if model:
         argv += ['--model', model]
     log = (folder/(token+'.log')).open('ab')
-    env = dict(os.environ, WORKBENCH_MANAGED_SERVER='1', WORKBENCH_SERVER_INSTANCE=token)
+    env = dict(os.environ, WORKBENCH_MANAGED_SERVER='1', WORKBENCH_SERVER_INSTANCE=token, PYTHONUNBUFFERED='1')
     try:
         process = subprocess.Popen(argv, cwd=root, env=env, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT, text=True)
     except BaseException:
@@ -122,7 +135,17 @@ def session(root, model=None, base=DEFAULT_BASE):
                 # verified Workbench server; this process owns no other PID.
                 if state:
                     break
-                raise ClientError(f'Server failed to start; see {folder/(token+".log")}')
+                log_path = folder/(token+'.log')
+                detail = ''
+                try:
+                    lines = [line.strip() for line in log_path.read_text(encoding='utf-8', errors='replace').splitlines() if line.strip()]
+                    detail = lines[-1][:300] if lines else ''
+                except OSError:
+                    detail = ''
+                message = f'Server failed to start; see {log_path}'
+                if detail:
+                    message = f'{message}: {detail}'
+                raise ClientError(message)
             time.sleep(.1)
         else:
             raise ClientError('Server startup timed out')

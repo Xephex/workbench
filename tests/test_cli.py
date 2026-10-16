@@ -59,6 +59,7 @@ chunks = [{{ blob = "ab", bytes = 1 }}]
 ''')
         self.patches = [
             mock.patch('workbench.client.Client.peek', return_value=None),
+            mock.patch('workbench.tools.commands.port_open', return_value=False),
             mock.patch.dict(os.environ, {"WORKBENCH_REPO_BASE": (base / "remote").as_uri()}),
             mock.patch.object(cli, "CATALOG", base / "catalog.toml"),
             mock.patch.object(cli, "MODELS", base / "models"),
@@ -143,6 +144,13 @@ chunks = [{{ blob = "ab", bytes = 1 }}]
         self.assertEqual(code, 0, out)
         self.assertIn("Platform pack: linux-x64-vulkan", out)
         self.assertTrue((self.base / "models" / "tiny" / "t.gguf").exists())
+
+    def test_setup_continues_when_port_accepts_but_workbench_does_not_answer(self):
+        with mock.patch("workbench.tools.commands.port_open", return_value=True):
+            code, out = self.run_cli("setup", "--packages-only", "--yes")
+        self.assertEqual(code, 0, out)
+        self.assertIn("not answering as Workbench", out)
+        self.assertIn("Setup will continue", out)
 
     def test_ctrl_c_at_prompt_aborts(self):
         """I5: Ctrl+C must never start the default download."""

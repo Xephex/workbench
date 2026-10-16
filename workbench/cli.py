@@ -187,6 +187,8 @@ def main(argv: list[str]) -> int:
             elif commands.Client(key=commands.read_key(ROOT)).peek() is not None:
                 say('Stop the running server before setup changes its installed packages.')
                 return 1
+            if a.cmd == 'setup' and commands.port_open():
+                say('127.0.0.1:8080 is open but is not answering as Workbench. Setup will continue. Stop that program before serve.')
         except (commands.ClientError, OSError, ValueError) as exc:
             say(str(exc))
             return 1

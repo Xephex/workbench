@@ -30,6 +30,8 @@ class Tracing:
         self.config, self.viewer, self.viewer_log = config, None, None
         self.viewer_url = None
         self.provider = TracerProvider(resource=Resource.create({'service.name': 'workbench'}))
+        # The pinned SDK has no public override; local request history is mandatory.
+        self.provider._disabled = False
         self.provider.add_span_processor(SimpleSpanProcessor(FileExporter(config.root/'data/traces/spans.jsonl')))
         self.tracer = self.provider.get_tracer('workbench')
         for exporter in exporters or []:

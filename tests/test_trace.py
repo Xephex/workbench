@@ -1,5 +1,7 @@
-import json, pathlib, tempfile, unittest
+import json, os, pathlib, tempfile, unittest
 from unittest import mock
+from opentelemetry import trace as otel
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from workbench.runtime import Config
 from workbench.trace import Tracing, Phases
@@ -14,6 +16,40 @@ class Capture(SpanExporter):
         return None
 
 class TraceTest(unittest.TestCase):
+    def test_local_recording_ignores_ambient_sdk_disable(self):
+        for disabled in ('true', ' TRUE '):
+            with self.subTest(disabled=disabled), tempfile.TemporaryDirectory() as d, \
+                 mock.patch.dict(os.environ, {'OTEL_SDK_DISABLED': disabled}):
+                root = pathlib.Path(d)
+                global_provider = otel.get_tracer_provider()
+                sink = Capture()
+                t = Tracing(Config(root, root/'models', capture=False, phoenix=False), [sink])
+                try:
+                    with t.child('request'):
+                        with t.child('model.load'):
+                            pass
+                        phases = Phases(t)
+                        phases.change('prompt'); phases.change('generation'); phases.close()
+                    self.assertEqual(os.environ['OTEL_SDK_DISABLED'], disabled)
+                    self.assertIs(otel.get_tracer_provider(), global_provider)
+                    # Other SDK users must still honor the process-wide switch.
+                    other = TracerProvider()
+                    try:
+                        with other.get_tracer('other').start_as_current_span('disabled') as span:
+                            self.assertFalse(span.is_recording())
+                    finally:
+                        other.shutdown()
+                finally:
+                    t.close()
+                rows = [json.loads(line) for line in (root/'data/traces/spans.jsonl').read_text().splitlines()]
+                expected = {'request', 'model.load', 'prompt', 'generation'}
+                self.assertEqual({row['name'] for row in rows}, expected)
+                self.assertEqual({span.name for span in sink.spans}, expected)
+                parent = next(span for span in sink.spans if span.name == 'request')
+                for span in sink.spans:
+                    if span.name != 'request':
+                        self.assertEqual(span.parent.span_id, parent.context.span_id)
+
     def test_private_trace_contains_no_content(self):
         with tempfile.TemporaryDirectory() as d:
             root = pathlib.Path(d)

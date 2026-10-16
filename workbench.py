@@ -2,6 +2,9 @@ r"""Offline LLM workbench.
 
     python workbench.py setup      detect this machine, install, choose and fetch models
     python workbench.py models     add or remove models
+    python workbench.py serve      local server on 127.0.0.1:8080
+    python workbench.py chat       talk to a model through that server
+    python workbench.py ask        one question through that server
     python workbench.py status     what this machine is and what is installed
 
 On Windows use:  py -3.14 workbench.py setup

@@ -5,5 +5,5 @@ from workbench import install
 if not install.activate(ROOT):
     raise SystemExit('Install the pack first: python workbench.py setup --packages-only --yes')
 if __name__ == '__main__':
-    args = sys.argv[1:] or ['discover', '-s', 'tests', '-v']
+    args = sys.argv[1:] or ['discover', '-s', 'tests', '-t', str(ROOT), '-v']
     unittest.main(module=None, argv=[sys.argv[0], *args])

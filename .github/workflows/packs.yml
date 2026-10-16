@@ -8,7 +8,7 @@ name: packs
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, plan2]  # plan2: temporary, removed before merge
     paths: ["packs/**", "workbench/install.py", ".github/workflows/packs.yml"]
 
 jobs:

@@ -111,6 +111,24 @@ jobs:
           print(new)
           EOF
 
+      - name: Keep libllama within manylinux_2_28
+        if: runner.os == 'Linux'
+        working-directory: llama-cpp-python/vendor/llama.cpp
+        # std::random_device::entropy() needs GLIBCXX_3.4.25; auditwheel's
+        # manylinux_2_28 policy stops at 3.4.24. libstdc++'s random_device is
+        # a true RNG on Linux, so the probe is skipped (same result there).
+        run: |
+          python - <<'EOF'
+          import pathlib
+          p = pathlib.Path("src/llama-sampler.cpp")
+          s = p.read_text()
+          old = "static bool is_rd_prng = std::random_device().entropy() == 0;"
+          if s.count(old) != 1:
+              raise SystemExit(f"expected one {old!r} in {p}")
+          p.write_text(s.replace(old, "static bool is_rd_prng = false;  // workbench: see llama-wheels.yml"))
+          print("patched", p)
+          EOF
+
       - name: Build the wheel in ${{ matrix.image }}
         if: runner.os == 'Linux'
         env:

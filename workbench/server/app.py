@@ -11,6 +11,7 @@ from workbench.engines.llama import LlamaEngine
 from workbench.runtime import Config
 from workbench.server.manager import Manager, ManagerError
 from workbench.server.schemas import ChatRequest, EmbeddingRequest, RerankRequest
+from workbench.server.streaming import Worker, respond, shutdown
 from workbench.trace import Tracing, RequestTracing, Phases
 
 def error(status, message, kind='invalid_request_error'):
@@ -146,6 +147,7 @@ def create_app(config, profile=None, models=None, engine=None, tracing=None):
         if closed:
             return
         closed = True
+        await shutdown(app.state.workers)
         await asyncio.to_thread(manager.close)
         await asyncio.to_thread(tracing.close)
     @contextlib.asynccontextmanager
@@ -155,6 +157,8 @@ def create_app(config, profile=None, models=None, engine=None, tracing=None):
         finally:
             await cleanup()
     app = FastAPI(lifespan=lifespan)
+    app.state.workers = set()
+    app.state.ping = 10
     app.state.cleanup = cleanup
     app.state.manager, app.state.service, app.state.tracing = manager, service, tracing
     app.state.instance = uuid.uuid4().hex
@@ -237,16 +241,11 @@ def create_app(config, profile=None, models=None, engine=None, tracing=None):
         if images and ('vision' not in manager.models[mid].kinds or
                        not any(f.role == 'mmproj' for f in manager.models[mid].files)):
             raise ManagerError(400, f'{mid} does not support images')
-        if body.stream:
-            raise ManagerError(400, 'This route currently accepts JSON responses only')
         ticket = await submit(mid)
-        run = Run(engine)
         capture = request.headers.get('x-workbench-trace-content', 'true').lower() != 'false'
-        try:
-            return await execute_safe(lambda: service.chat(ticket, payload, lambda chunk: None, run, capture))
-        except asyncio.CancelledError:
-            run.cancel()
-            raise
+        worker = Worker(service, ticket, payload, capture)
+        return await respond(request, worker, body.stream,
+            bool(body.stream_options and body.stream_options.include_usage), app.state.ping)
     @app.post('/v1/embeddings')
     async def embeddings(body: EmbeddingRequest, request: Request):
         mid = choose(body.model, 'embeddings')

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import argparse, pathlib
+import argparse, json, pathlib
 
 from workbench import catalog, fetch, hw, install, packs
 from workbench.ui import ask, gb, say
@@ -160,7 +160,12 @@ def cmd_setup(a, p, models) -> int:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="workbench.py")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("status")
+    status = sub.add_parser("status")
+    status.add_argument('--model')
+    status.add_argument('--json', action='store_true')
+    status.add_argument('--server', default='http://127.0.0.1:8080')
+    from workbench.tools import commands
+    commands.add_parsers(sub)
     m = sub.add_parser("models")
     m.add_argument("--add", nargs="+")
     m.add_argument("--remove", nargs="+")
@@ -171,6 +176,14 @@ def main(argv: list[str]) -> int:
     s.add_argument("--packages-only", action="store_true", help="install packages, choose no models")
     s.add_argument("--pack", choices=packs.PACKS, help="use this platform pack instead of the detected one")
     a = ap.parse_args(argv)
+    if a.cmd in ('serve', 'chat', 'ask', 'embed', 'rank'):
+        return commands.dispatch(a, ROOT, MODELS)
     p = hw.detect(MODELS)
     models = catalog.load(CATALOG)
+    if a.cmd == 'status':
+        try:
+            return commands.status(a, p, models, ROOT, MODELS)
+        except (OSError, ValueError, commands.ClientError) as exc:
+            say(json.dumps({'error': str(exc)}) if a.json else str(exc))
+            return 1
     return {"status": cmd_status, "models": cmd_models, "setup": cmd_setup}[a.cmd](a, p, models)

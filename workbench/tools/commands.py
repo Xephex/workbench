@@ -1,5 +1,5 @@
 from __future__ import annotations
-import dataclasses, json, os, pathlib, sys, threading, uuid
+import dataclasses, json, os, pathlib, sys, threading, time, uuid
 from workbench import catalog, fetch, install
 from workbench.client import Client, ClientError, DEFAULT_BASE, read_key, share_key, session
 from workbench.runtime import Config
@@ -163,4 +163,40 @@ def status(a, profile, models, root, models_dir):
     else:
         cmd_status(a, profile, chosen)
         print('Server: '+('not running' if server is None else json.dumps(server)))
+    return 0
+
+def models_running(a, root):
+    client = Client(DEFAULT_BASE, read_key(root))
+    if client.peek() is None:
+        return None
+    rows = client.request('GET', '/wb/models')['models']
+    known = {r['id']: r for r in rows}
+    remove = a.remove or []
+    add = a.add or []
+    if not remove and not add:
+        recommended = [r['id'] for r in rows if r['runnable'] and r['recommended']]
+        if a.yes:
+            add = recommended
+        else:
+            from workbench.ui import ask
+            for row in rows:
+                print(f"{row['id']}: {'installed' if row['installed'] else 'not installed'}"
+                      + (f" ({row.get('reason')})" if row.get('reason') else ''))
+            value = ask('Models to install, comma-separated', ','.join(recommended))
+            add = [x.strip() for x in value.split(',') if x.strip()]
+    for action, ids in (('remove', remove), ('install', add)):
+        for mid in ids:
+            if mid not in known:
+                raise ClientError(f'Unknown model {mid}')
+            if action == 'install' and not known[mid]['runnable']:
+                raise ClientError(known[mid].get('reason') or 'Model cannot run here')
+            row = client.request('POST', '/wb/models', {'action': action, 'model': mid})
+            while True:
+                result = next(j for j in client.request('GET', '/wb/jobs')['jobs'] if j['id'] == row['id'])
+                if result['state'] not in ('queued', 'running'):
+                    if result['state'] != 'succeeded':
+                        raise ClientError(result.get('error') or result['state'])
+                    print(f'{mid}: {action} succeeded')
+                    break
+                time.sleep(.2)
     return 0

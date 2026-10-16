@@ -74,3 +74,59 @@ class CommandsTest(unittest.TestCase):
                 with self.assertRaises(SystemExit) as caught:
                     cli.main(argv)
                 self.assertEqual(caught.exception.code, 0)
+
+class LiveModelsTest(unittest.TestCase):
+    def test_models_mutation_goes_through_running_server(self):
+        args = argparse.Namespace(add=['chat'], remove=None, yes=False)
+        fake = mock.Mock()
+        fake.peek.return_value = {'service': 'workbench'}
+        fake.request.side_effect = [
+            {'models': [{'id': 'chat', 'installed': False, 'runnable': True, 'recommended': True}]},
+            {'id': 'j'}, {'jobs': [{'id': 'j', 'state': 'succeeded'}]}]
+        with mock.patch.object(commands, 'Client', return_value=fake), mock.patch('sys.stdout', io.StringIO()):
+            self.assertEqual(commands.models_running(args, pathlib.Path('.')), 0)
+        self.assertEqual(fake.request.call_args_list[1].args,
+                         ('POST', '/wb/models', {'action': 'install', 'model': 'chat'}))
+
+    def test_cli_live_mutations_bypass_bootstrap_and_setup_is_blocked(self):
+        fake = mock.Mock()
+        fake.peek.return_value = {'service': 'workbench'}
+        fake.request.side_effect = [
+            {'models': [{'id': 'chat', 'installed': True, 'runnable': True}]},
+            {'id': 'j'}, {'jobs': [{'id': 'j', 'state': 'succeeded'}]}]
+        with mock.patch.object(commands, 'Client', return_value=fake), \
+             mock.patch.object(cli.hw, 'detect') as detect, \
+             mock.patch.object(cli, 'cmd_models') as bootstrap, \
+             mock.patch.object(cli.install, 'install_pack') as install_pack, \
+             mock.patch('sys.stdout', io.StringIO()) as out:
+            self.assertEqual(cli.main(['models', '--remove', 'chat']), 0)
+            self.assertEqual(cli.main(['setup', '--packages-only', '--yes']), 1)
+            self.assertIn('Stop the running server', out.getvalue())
+        detect.assert_not_called()
+        bootstrap.assert_not_called()
+        install_pack.assert_not_called()
+        self.assertEqual(fake.request.call_args_list[1].args,
+                         ('POST', '/wb/models', {'action': 'remove', 'model': 'chat'}))
+
+    def test_missing_server_falls_back_and_probe_errors_do_not(self):
+        args = argparse.Namespace(add=['chat'], remove=None, yes=False)
+        with mock.patch.object(commands.Client, 'peek', return_value=None):
+            self.assertIsNone(commands.models_running(args, pathlib.Path('.')))
+        with mock.patch.object(commands.Client, 'peek', side_effect=ClientError('Unauthorized')), \
+             mock.patch.object(cli, 'cmd_models') as bootstrap, \
+             mock.patch('sys.stdout', io.StringIO()):
+            self.assertEqual(cli.main(['models', '--remove', 'chat']), 1)
+        bootstrap.assert_not_called()
+
+    def test_live_job_polling_reports_failure(self):
+        fake = mock.Mock()
+        fake.request.side_effect = [
+            {'models': [{'id': 'chat', 'runnable': True, 'recommended': True}]},
+            {'id': 'j'}, {'jobs': [{'id': 'j', 'state': 'running'}]},
+            {'jobs': [{'id': 'j', 'state': 'failed', 'error': 'Model is busy'}]}]
+        args = argparse.Namespace(add=None, remove=None, yes=True)
+        with mock.patch.object(commands, 'Client', return_value=fake), \
+             mock.patch.object(commands.time, 'sleep') as sleep:
+            with self.assertRaisesRegex(ClientError, 'Model is busy'):
+                commands.models_running(args, pathlib.Path('.'))
+        sleep.assert_called_once_with(.2)

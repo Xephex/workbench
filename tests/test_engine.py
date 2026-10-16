@@ -46,6 +46,36 @@ class Native:
         self.aborted = True
 
 class EngineTest(unittest.TestCase):
+    def test_hybrid_checkpoint_interval_scales_to_short_context(self):
+        for context, interval in ((1024, 256), (16384, 4096)):
+            h = self.engine.load(self.entry, {'models_dir': self.root, 'placement': 'cpu',
+                'n_threads': 2, 'cache_bytes': 1024, 'think': False, 'n_ctx': context})
+            self.assertEqual(h.native.kwargs['checkpoint_interval'], interval)
+            self.assertEqual(h.native.kwargs['n_batch'], min(512, interval))
+
+    def test_each_native_chat_starts_a_new_performance_interval(self):
+        h = self.engine.load(self.entry, {'models_dir': self.root, 'placement': 'cpu',
+            'n_threads': 2, 'cache_bytes': 1024, 'think': False})
+        h.native._ctx = mock.Mock()
+        self.engine.injected = False
+        with mock.patch.object(self.engine, 'measure'):
+            for _ in range(2):
+                list(self.engine.chat(h, {'messages': [{'role': 'user', 'content': 'OK'}]},
+                                      lambda phase: None))
+        self.assertEqual(h.native._ctx.reset_timings.call_count, 2)
+        self.assertEqual(h.native.evaluated, [2, 0])
+
+    def test_native_performance_fields_match_installed_binding(self):
+        from llama_cpp import llama_cpp as api
+        perf = api.llama_perf_context_data(n_p_eval=123, t_p_eval_ms=45.5, t_eval_ms=6.5)
+        handle = types.SimpleNamespace(native=types.SimpleNamespace(
+            _ctx=types.SimpleNamespace(ctx=object())), metrics={})
+        engine = LlamaEngine(pathlib.Path('.'))
+        with mock.patch.object(api, 'llama_perf_context', return_value=perf):
+            engine.measure(handle)
+        self.assertEqual(handle.metrics,
+                         {'prompt_evaluated': 123, 'prompt_ms': 45.5, 'generation_ms': 6.5})
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)

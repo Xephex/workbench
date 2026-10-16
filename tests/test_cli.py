@@ -58,6 +58,7 @@ repo = "Xephex/models"
 chunks = [{{ blob = "ab", bytes = 1 }}]
 ''')
         self.patches = [
+            mock.patch('workbench.client.Client.peek', return_value=None),
             mock.patch.dict(os.environ, {"WORKBENCH_REPO_BASE": (base / "remote").as_uri()}),
             mock.patch.object(cli, "CATALOG", base / "catalog.toml"),
             mock.patch.object(cli, "MODELS", base / "models"),

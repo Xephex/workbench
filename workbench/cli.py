@@ -178,6 +178,18 @@ def main(argv: list[str]) -> int:
     a = ap.parse_args(argv)
     if a.cmd in ('serve', 'chat', 'ask', 'embed', 'rank'):
         return commands.dispatch(a, ROOT, MODELS)
+    if a.cmd in ('models', 'setup'):
+        try:
+            if a.cmd == 'models':
+                result = commands.models_running(a, ROOT)
+                if result is not None:
+                    return result
+            elif commands.Client(key=commands.read_key(ROOT)).peek() is not None:
+                say('Stop the running server before setup changes its installed packages.')
+                return 1
+        except (commands.ClientError, OSError, ValueError) as exc:
+            say(str(exc))
+            return 1
     p = hw.detect(MODELS)
     models = catalog.load(CATALOG)
     if a.cmd == 'status':

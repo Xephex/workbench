@@ -100,6 +100,11 @@ class LlamaEngine:
             defaults = {'n_ctx': 2048, 'n_batch': 2048, 'n_ubatch': 2048,
                         'pooling_type': 4 if 'rerank' in entry.kinds else -1}
         defaults.update({k: settings[k] for k in ('n_ctx', 'n_batch', 'n_ubatch', 'n_cpu_moe') if k in settings})
+        if not small:
+            # Hybrid models need an intermediate checkpoint to reuse short prompts.
+            interval = max(1, min(4096, defaults['n_ctx'] // 4))
+            defaults['checkpoint_interval'] = interval
+            defaults.setdefault('n_batch', min(512, interval))
         defaults.update(n_threads=settings['n_threads'], n_threads_batch=settings['n_threads'],
                         n_gpu_layers=-1 if settings['placement'] == 'gpu' else 0,
                         verbose=False, no_perf=False)
@@ -162,6 +167,9 @@ class LlamaEngine:
         h.native.abort()
 
     def chat(self, h, request, phase):
+        if not self.injected:
+            # Reset performance counters only; retain resident KV/cache state.
+            h.native._ctx.reset_timings()
         h.usage = {'prompt_tokens': 0, 'completion_tokens': 0}
         h.phase = phase
         phase('prompt')
@@ -254,8 +262,8 @@ class LlamaEngine:
         if not self.injected:
             from llama_cpp import llama_cpp as api
             perf = api.llama_perf_context(h.native._ctx.ctx)
-            h.metrics = dict(prompt_evaluated=int(perf.n_p_eval), prompt_ms=float(perf.t_p_eval),
-                             generation_ms=float(perf.t_eval))
+            h.metrics = dict(prompt_evaluated=int(perf.n_p_eval), prompt_ms=float(perf.t_p_eval_ms),
+                             generation_ms=float(perf.t_eval_ms))
 
     def stats(self, h):
         # Status may run during inference. Read cached Python values only.

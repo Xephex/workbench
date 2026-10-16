@@ -138,8 +138,13 @@ jobs:
             echo "CMAKE_ARGS=$CMAKE_ARGS"
             $PY -m pip install -q --root-user-action=ignore build
             $PY -m build --wheel --outdir dist
-            LD_LIBRARY_PATH=/w/llama-cpp-python/llama_cpp/lib:/opt/vulkan/lib \
-              auditwheel repair ${REPAIR_ARGS:-} --plat "$PLAT" --only-plat -w /w/wheelhouse dist/*.whl
+            export LD_LIBRARY_PATH=/w/llama-cpp-python/llama_cpp/lib:/opt/vulkan/lib
+            auditwheel -v show dist/*.whl 2>&1 | grep -v '^DEBUG' || true
+            for f in llama_cpp/lib/*.so*; do
+              [ -L "$f" ] && continue
+              echo "== $f"; objdump -T "$f" | grep -oE '(GLIBC|GLIBCXX|CXXABI|GCC)_[0-9A-Z_.]+' | sort -uV | tail -4 || true
+            done
+            auditwheel repair ${REPAIR_ARGS:-} --plat "$PLAT" --only-plat -w /w/wheelhouse dist/*.whl
             auditwheel show "/w/wheelhouse/$WHEEL"
         run: |
           docker run --rm -v "$GITHUB_WORKSPACE:/w" \
@@ -179,6 +184,7 @@ jobs:
           $root = @(Get-ChildItem unpacked -Directory)[0].FullName
           $omp = Join-Path $root 'llama_cpp\lib\libomp140.x86_64.dll'
           if (Test-Path -LiteralPath $omp) { Remove-Item -LiteralPath $omp; Write-Output "removed libomp140.x86_64.dll" }
+          New-Item -ItemType Directory -Force ..\wheelhouse | Out-Null
           python -m wheel pack $root -d ..\wheelhouse
           if ($LASTEXITCODE -ne 0) { throw "repack failed" }
 

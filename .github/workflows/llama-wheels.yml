@@ -169,6 +169,7 @@ jobs:
               if [ "$rp" != '$ORIGIN' ]; then echo "RUNPATH $rp -> \$ORIGIN: ${f##*/}"; patchelf --set-rpath '$ORIGIN' "$f"; fi
             done
             cd /w/llama-cpp-python
+            mkdir -p /tmp/trimmed
             $PY -m wheel pack "/tmp/unpacked/llama_cpp_python-0.4.2+$LABEL" -d /tmp/trimmed
             export LD_LIBRARY_PATH=/opt/vulkan/lib
             auditwheel show /tmp/trimmed/*.whl || true

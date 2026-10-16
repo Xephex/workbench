@@ -54,24 +54,9 @@ jobs:
       - name: Installed stack imports; no .exe; Windows has no monty
         if: steps.have.outputs.yes == 'true'
         working-directory: wb
-        run: |
-          python -I - <<'EOF'
-          import pathlib, sys
-          sys.path.insert(0, ".")
-          from workbench import install
-          root = pathlib.Path(".")
-          assert install.installed_pack(root) == "${{ matrix.pack }}", install.installed_pack(root)
-          assert install.activate(root)
-          import fastapi, gradio, phoenix, opentelemetry.sdk, llama_cpp
-          print("fastapi", fastapi.__version__, "gradio", gradio.__version__, "llama_cpp", llama_cpp.__version__)
-          print(llama_cpp.llama_print_system_info().decode())
-          exes = [str(p) for p in install.site_dir(root).rglob("*") if p.suffix.lower() == ".exe"]
-          assert not exes, exes
-          if sys.platform == "win32":
-              import importlib.util
-              assert importlib.util.find_spec("pydantic_monty") is None, "monty must not be installed on Windows"
-          print("ok")
-          EOF
+        # A script file, not stdin: strawberry (via Phoenix) calls Path(<caller file>).samefile(),
+        # and Windows rejects the name "<stdin>".
+        run: python -I tools/check_pack_install.py ${{ matrix.pack }}
 
       - name: Second run is up to date
         if: steps.have.outputs.yes == 'true'

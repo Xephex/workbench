@@ -33,6 +33,11 @@ python workbench.py status
 `chat` and `ask` reuse the server when it is already running. On Windows,
 prefix those commands with `py -3.14` as well.
 
+`examples/n8n/workbench-chat.json` is a plain n8n chat, with Responses API off
+and no tools. To install it with your local n8n API key and this server's
+address, set `N8N_API_KEY` and run `py -3.14 examples/n8n/install_demo.py`.
+The key is not written into the file.
+
 Setup options: `--no-trace-viewer` skips the trace viewer (about 170 MB),
 `--packages-only` installs packages without choosing models, and `--pack ID`
 forces a platform pack (for example `win-x64-vulkan` on an NVIDIA machine).

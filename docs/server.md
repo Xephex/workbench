@@ -12,6 +12,10 @@ Commands use the same HTTP API:
     python workbench.py rank "bicycles" "a car" "a bicycle" --top-n 1 --json
     python workbench.py status --json
 
+`examples/n8n/install_demo.py` installs a one-shot n8n chat workflow. It reads
+`N8N_API_KEY` and this server's address and key. The workflow calls chat
+completions only.
+
 Add `--server http://127.0.0.1:8080` to use an explicit server. Inference
 commands reuse a running server; otherwise they start a temporary loopback
 server and stop only that process on exit. Status never starts a server.

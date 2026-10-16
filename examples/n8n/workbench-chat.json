@@ -1,0 +1,84 @@
+{
+  "name": "Workbench chat test",
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Workbench chat test\n\nThe server must already be running at the Base URL on the OpenAI Chat Model node.\n\nThis is a plain chain with no tools, and Responses API is off. Click Execute workflow.\n\nThe model id is qwen3.5-4b. Change it if you installed a different chat model. From list shows every model on that server.",
+        "height": 260,
+        "width": 460,
+        "color": 4
+      },
+      "id": "8d5c2a10-6b4e-4a1f-9c3d-71e0a4b2c801",
+      "name": "Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-80, -280]
+    },
+    {
+      "parameters": {},
+      "id": "b7e1c4d2-1a90-4f6e-8b33-05c9d2e7a114",
+      "name": "When clicking Execute workflow",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Reply with one sentence: what is 2 plus 2?"
+      },
+      "id": "c3a9e7b1-55d4-4e28-9f60-18ab6c0d4e22",
+      "name": "Basic LLM Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [280, 0]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "qwen3.5-4b",
+          "cachedResultName": "qwen3.5-4b"
+        },
+        "responsesApiEnabled": false,
+        "builtInTools": {},
+        "options": {
+          "baseURL": "http://127.0.0.1:8080/v1",
+          "timeout": 300000,
+          "temperature": 0.2
+        }
+      },
+      "id": "e6f0a2c8-9b17-4d35-a4e1-27c8b5f0d903",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [300, 220]
+    }
+  ],
+  "connections": {
+    "When clicking Execute workflow": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

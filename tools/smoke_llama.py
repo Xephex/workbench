@@ -46,6 +46,10 @@ def main(argv: list[str]) -> None:
     e = LlamaEmbedding(model_path=str(model), n_gpu_layers=0, verbose=False)
     # After the model load: with dynamic backends, nothing is loaded before it.
     print("system info:", llama_cpp.llama_print_system_info().decode(), flush=True)
+    from llama_cpp import _ggml
+    regs = [_ggml.ggml_backend_reg_name(_ggml.ggml_backend_reg_get(i)).decode()
+            for i in range(_ggml.ggml_backend_reg_count())]
+    print("backends:", ", ".join(regs), flush=True)
     v = e.embed(["hello world", "bonjour"])
     if len(v) != 2:
         fail(f"expected 2 vectors, got {len(v)}")

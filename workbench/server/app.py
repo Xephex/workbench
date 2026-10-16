@@ -10,6 +10,7 @@ from workbench import catalog, fetch, hw
 from workbench.engines.llama import LlamaEngine
 from workbench.runtime import Config
 from workbench.server.manager import Manager, ManagerError
+from workbench.server.jobs import Jobs, ModelAction
 from workbench.server.schemas import ChatRequest, EmbeddingRequest, RerankRequest
 from workbench.server.streaming import Worker, respond, shutdown
 from workbench.trace import Tracing, RequestTracing, Phases
@@ -141,6 +142,7 @@ def create_app(config, profile=None, models=None, engine=None, tracing=None):
     tracing = tracing or Tracing(config)
     manager = Manager(config, profile, models, engine)
     service = Service(manager, tracing)
+    jobs_worker = Jobs(config, manager, tracing)
     closed = False
     async def cleanup():
         nonlocal closed
@@ -148,6 +150,7 @@ def create_app(config, profile=None, models=None, engine=None, tracing=None):
             return
         closed = True
         await shutdown(app.state.workers)
+        await asyncio.to_thread(jobs_worker.close)
         await asyncio.to_thread(manager.close)
         await asyncio.to_thread(tracing.close)
     @contextlib.asynccontextmanager
@@ -229,7 +232,12 @@ def create_app(config, profile=None, models=None, engine=None, tracing=None):
                 **(await asyncio.to_thread(manager.snapshot))}
     @app.get('/wb/jobs')
     async def jobs():
-        return {'jobs': []}
+        return {'jobs': jobs_worker.snapshot()}
+    @app.post('/wb/models', status_code=202)
+    async def change_model(body: ModelAction):
+        if body.action == 'cancel':
+            return jobs_worker.cancel(body.job_id)
+        return await asyncio.to_thread(jobs_worker.submit, body.action, body.model)
     @app.post('/v1/chat/completions')
     async def chat(body: ChatRequest, request: Request):
         mid = choose(body.model, 'chat')
